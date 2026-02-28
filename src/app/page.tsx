@@ -929,7 +929,7 @@ export default function Home() {
   }, []);
 
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(10px); }
@@ -986,7 +986,7 @@ export default function Home() {
       </header>
 
       {/* ── Main ── */}
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "44px 24px 80px" }}>
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "44px 24px 0", flex: 1, width: "100%" }}>
 
         {/* Hero */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
@@ -1100,6 +1100,50 @@ export default function Home() {
           </div>
         )}
       </main>
-    </>
+
+      {/* ── Footer ── */}
+      <footer
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 6,
+          padding: "20px 24px 36px",
+          borderTop: "1px solid #f3f4f6",
+        }}
+      >
+        <a
+          href="/terms-of-service"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: "0.68rem",
+            color: "#9ca3af",
+            textDecoration: "none",
+            letterSpacing: "0.02em",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = "#374151")}
+          onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
+        >
+          服务条款
+        </a>
+        <span style={{ color: "#e5e7eb", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.68rem" }}>·</span>
+        <a
+          href="/privacy-policy"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: "0.68rem",
+            color: "#9ca3af",
+            textDecoration: "none",
+            letterSpacing: "0.02em",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.color = "#374151")}
+          onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
+        >
+          隐私政策
+        </a>
+      </footer>
+    </div>
   );
 }
