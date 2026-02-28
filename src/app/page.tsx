@@ -520,41 +520,74 @@ function FlowTapeModule({ tape }: { tape: TapeData }) {
       )}
 
       {/* 9.4 Block / 隐埋大单 */}
-      {blocks.length > 0 && (
-        <div>
-          <HR />
-          <SubLabel>9.4  "隐埋大单 / 大额异动"代理日（异常放量 + 窄幅波动）</SubLabel>
-          <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: 540 }}>
-              <TableHeader cols={BLOCK_HEADERS} template={blockCols} leftIdx={[0, 7]} />
-              {blocks.map((row, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: blockCols, gap: "0 4px", padding: "4px 0", borderBottom: "1px solid #fafafa", alignItems: "center" }}>
-                  <span style={dateCell}>{row.Date ?? "--"}</span>
-                  <span style={{ ...monoCell, color: "#0f0f0f" }}>{fmt(row.Close)}</span>
-                  <span style={{ ...monoCell, color: signColor(row["Ret%"]) }}>{fmtPct(row["Ret%"])}</span>
-                  <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.Vol_Z, 3)}</span>
-                  <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.Range_Q, 3)}</span>
-                  <span style={{ ...monoCell, color: signColor(row.CMF) }}>{fmt(row.CMF, 3)}</span>
-                  <span style={{ ...monoCell, color: signColor(row.Imbalance) }}>{fmt(row.Imbalance, 3)}</span>
-                  <BlockTag bp={row.BlockProxy} />
+      {/* 9.4 Block — 有数据 or 空状态 */}
+      <div>
+        <HR />
+        <SubLabel>9.4  "隐埋大单 / 大额异动"代理日（异常放量 + 窄幅波动）</SubLabel>
+        {blocks.length === 0 ? (
+          <p style={{
+            fontSize: "0.75rem",
+            color: "#9ca3af",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontStyle: "italic",
+          }}>
+            最近窗口内没有明显的 block-proxy 日
+          </p>
+        ) : (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 540 }}>
+                <TableHeader cols={BLOCK_HEADERS} template={blockCols} leftIdx={[0, 7]} />
+                {blocks.map((row, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: blockCols, gap: "0 4px", padding: "4px 0", borderBottom: "1px solid #fafafa", alignItems: "center" }}>
+                    <span style={dateCell}>{row.Date ?? "--"}</span>
+                    <span style={{ ...monoCell, color: "#0f0f0f" }}>{fmt(row.Close)}</span>
+                    <span style={{ ...monoCell, color: signColor(row["Ret%"]) }}>{fmtPct(row["Ret%"])}</span>
+                    <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.Vol_Z, 3)}</span>
+                    <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.Range_Q, 3)}</span>
+                    <span style={{ ...monoCell, color: signColor(row.CMF) }}>{fmt(row.CMF, 3)}</span>
+                    <span style={{ ...monoCell, color: signColor(row.Imbalance) }}>{fmt(row.Imbalance, 3)}</span>
+                    <BlockTag bp={row.BlockProxy} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* 解读 */}
+            <div style={{
+              marginTop: 14,
+              background: "#fafafa",
+              borderRadius: 8,
+              padding: "12px 14px",
+            }}>
+              <p style={{
+                fontSize: "0.63rem",
+                color: "#9ca3af",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                marginBottom: 8,
+                fontWeight: 600,
+              }}>解读</p>
+              {[
+                { dot: "#374151", text: "Vol_Z 高：当日成交量显著异常" },
+                { dot: "#374151", text: "Range_Q 低：当日波动相对更窄（更像“隐蔽换手 / 吸筹 / 派发”）" },
+                { dot: "#16a34a", text: "ABSORB?：偏吸筹嫌疑（放量但不大跌 / 资金不弱）" },
+                { dot: "#dc2626", text: "DISTRIB?：偏派发嫌疑（放量但不大涨 / 资金偏弱）" },
+              ].map(({ dot, text }) => (
+                <div key={text} style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 6 }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: dot, flexShrink: 0, marginTop: 4 }} />
+                  <span style={{
+                    fontSize: "0.7rem",
+                    color: "#6b7280",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    lineHeight: 1.5,
+                  }}>{text}</span>
                 </div>
               ))}
             </div>
-          </div>
-          {/* Legend */}
-          <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: "6px 20px" }}>
-            {[
-              { dot: "#16a34a", text: "ABSORB?：偏吸筹嫌疑（放量但不大跌 / 资金不弱）" },
-              { dot: "#dc2626", text: "DISTRIB?：偏派发嫌疑（放量但不大涨 / 资金偏弱）" },
-            ].map(({ dot, text }) => (
-              <div key={text} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                <span style={{ fontSize: "0.65rem", color: "#6b7280", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </>
   );
 }
@@ -796,22 +829,36 @@ function ResultPanel({ data }: { data: QuantData }) {
       {/* ── Module 5: Fundamentals ── */}
       <StyledCard delay={240}>
         <SectionLabel>基本面注释</SectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
-          <div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0 24px" }}>
+          <div style={{ minWidth: 0 }}>
             <SubLabel>质量指标</SubLabel>
             {data.q_notes.map((n, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#16a34a", flexShrink: 0 }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.73rem", color: "#374151" }}>{n}</span>
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 9 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#16a34a", flexShrink: 0, marginTop: 5 }} />
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "0.73rem",
+                  color: "#374151",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                  lineHeight: 1.55,
+                }}>{n}</span>
               </div>
             ))}
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <SubLabel>估值指标</SubLabel>
             {data.v_notes.map((n, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.73rem", color: "#374151" }}>{n}</span>
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 9 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706", flexShrink: 0, marginTop: 5 }} />
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "0.73rem",
+                  color: "#374151",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                  lineHeight: 1.55,
+                }}>{n}</span>
               </div>
             ))}
           </div>
