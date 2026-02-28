@@ -159,7 +159,7 @@ const scoreLabel: Record<string, string> = {
   Bottom: "抄底",
   Quality: "质量",
   Valuation: "估值",
-  Tailwind: "催化剂",
+  Tailwind: "行业顺风/景气度",
 };
 
 function verdictScore(v: "BUY" | "WATCH" | "NO"): number {
