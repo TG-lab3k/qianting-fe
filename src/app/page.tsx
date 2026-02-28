@@ -966,11 +966,13 @@ export default function Home() {
             gap: 8,
             border: `1.5px solid ${focused ? "#0f0f0f" : "#e5e7eb"}`,
             borderRadius: 10,
-            padding: "5px 5px 5px 16px",
+            padding: "5px",
+            paddingLeft: 16,
             background: "#fff",
             boxShadow: focused ? "0 0 0 3px rgba(15,15,15,0.05)" : "0 1px 3px rgba(0,0,0,0.04)",
             transition: "border-color 0.15s, box-shadow 0.15s",
             alignItems: "center",
+            boxSizing: "border-box" as const,
           }}>
             <input
               type="text"
@@ -989,6 +991,8 @@ export default function Home() {
                 background: "transparent",
                 letterSpacing: "0.05em",
                 fontFamily: "'JetBrains Mono', monospace",
+                minWidth: 0,
+                padding: 0,
               }}
             />
             <button
@@ -998,6 +1002,7 @@ export default function Home() {
                 padding: "9px 20px",
                 borderRadius: 7,
                 border: "none",
+                flexShrink: 0,
                 background: loading || !ticker.trim() ? "#f3f4f6" : "#0f0f0f",
                 color: loading || !ticker.trim() ? "#9ca3af" : "#fff",
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
