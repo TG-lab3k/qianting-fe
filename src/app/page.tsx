@@ -868,7 +868,7 @@ export default function Home() {
     setData(null);
     try {
       const res = await fetch(
-        `https://patient-tree-3ef6.leigoti3.workers.dev/api/quant/analyze?ticker=${sym}`
+        `https://api.qianting.xyz/analyze?ticker=${sym}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: ApiResponse = await res.json();
