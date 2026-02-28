@@ -153,13 +153,13 @@ const verdictLabel: Record<string, string> = {
 };
 
 const scoreLabel: Record<string, string> = {
-  Macro: "宏观",
-  Trend: "趋势",
-  Flow: "资金流",
-  Bottom: "抄底",
-  Quality: "质量",
-  Valuation: "估值",
-  Tailwind: "行业顺风/景气度",
+  Macro: "宏观环境",
+  Trend: "技术趋势",
+  Flow: "资金动向",
+  Bottom: "底部特征",
+  Quality: "盈利质量",
+  Valuation: "估值水平",
+  Tailwind: "行业景气",
 };
 
 function verdictScore(v: "BUY" | "WATCH" | "NO"): number {
