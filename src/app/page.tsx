@@ -42,6 +42,46 @@ interface LastData {
   Risk_Budget: number | null;
 }
 
+// ─── Tape Types ───────────────────────────────────────────────────────────────
+interface TapeDayRow {
+  Date?: string | null;
+  Close?: number | null;
+  "Ret%"?: number | null;
+  "Buy%"?: number | null;
+  VolZ?: number | null;
+  RangeQ?: number | null;
+  CMF?: number | null;
+  Imbalance?: number | null;
+  BlockProxy?: string | null;
+}
+
+interface BlockRow {
+  Date?: string | null;
+  Close?: number | null;
+  "Ret%"?: number | null;
+  Vol_Z?: number | null;
+  Range_Q?: number | null;
+  CMF?: number | null;
+  Imbalance?: number | null;
+  BlockProxy?: string | null;
+}
+
+interface MonthlyRow {
+  Month?: string | null;
+  BuyPct_Month?: number | null;
+  AvgVolZ?: number | null;
+  AvgCMF?: number | null;
+  UpDays?: number | null;
+  Days?: number | null;
+}
+
+interface TapeData {
+  top_buy?: TapeDayRow[];
+  top_sell?: TapeDayRow[];
+  monthly?: MonthlyRow[];
+  blocks?: BlockRow[];
+}
+
 interface QuantData {
   ticker: string;
   score: number;
@@ -51,6 +91,7 @@ interface QuantData {
   last: LastData;
   q_notes: string[];
   v_notes: string[];
+  tape?: TapeData;
 }
 
 interface ApiResponse {
@@ -60,25 +101,49 @@ interface ApiResponse {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// null / undefined / NaN safe — returns "—" for missing values
+/** null / undefined / NaN → "--" */
 function fmt(n: number | null | undefined, d = 2): string {
-  if (n == null || !isFinite(n)) return "—";
+  if (n == null || !isFinite(n)) return "--";
   return n.toFixed(d);
 }
 
-// null-safe color helpers
+/** percentage with null guard */
+function fmtPct(n: number | null | undefined, d = 1): string {
+  if (n == null || !isFinite(n)) return "--";
+  return n.toFixed(d) + "%";
+}
+
+/** null/NaN-safe validity check */
+function isValid(n: number | null | undefined): n is number {
+  return n != null && isFinite(n);
+}
+
 function scoreColor(score: number | null | undefined): string {
-  if (score == null) return "#9ca3af";
+  if (!isValid(score)) return "#9ca3af";
   if (score >= 70) return "#16a34a";
   if (score >= 40) return "#d97706";
   return "#dc2626";
 }
 
 function scoreBg(score: number | null | undefined): string {
-  if (score == null) return "rgba(156,163,175,0.08)";
+  if (!isValid(score)) return "rgba(156,163,175,0.08)";
   if (score >= 70) return "rgba(22,163,74,0.08)";
   if (score >= 40) return "rgba(217,119,6,0.08)";
   return "rgba(220,38,38,0.08)";
+}
+
+/** positive = green, negative = red */
+function signColor(n: number | null | undefined): string {
+  if (!isValid(n)) return "#9ca3af";
+  return n >= 0 ? "#16a34a" : "#dc2626";
+}
+
+/** Buy% coloring: ≥70 green, ≥50 amber, <50 red */
+function buyPctColor(n: number | null | undefined): string {
+  if (!isValid(n)) return "#9ca3af";
+  if (n >= 70) return "#16a34a";
+  if (n >= 50) return "#d97706";
+  return "#dc2626";
 }
 
 const verdictLabel: Record<string, string> = {
@@ -148,20 +213,18 @@ function CircularScore({ score }: { score: number }) {
 }
 
 // ─── ScoreBar — shadcn Progress ───────────────────────────────────────────────
-// Bug fix: setTimeout moved into useEffect with proper cleanup.
-// Bug fix: score typed as number | null; null renders "N/A" with grey bar.
 function ScoreBar({ label, score, delay = 0 }: { label: string; score: number | null; delay?: number }) {
   const [value, setValue] = useState(0);
   const color = scoreColor(score);
 
   useEffect(() => {
-    if (score == null) return;
+    if (!isValid(score)) return;
     const t = setTimeout(() => setValue(score), 150 + delay);
     return () => clearTimeout(t);
   }, [score, delay]);
 
-  const displayScore = score == null ? "N/A" : fmt(score, 1);
-  const barWidth = score == null ? 0 : value;
+  const displayScore = isValid(score) ? fmt(score, 1) : "--";
+  const barWidth = isValid(score) ? value : 0;
 
   return (
     <div style={{ marginBottom: 15 }}>
@@ -170,19 +233,10 @@ function ScoreBar({ label, score, delay = 0 }: { label: string; score: number | 
           {label}
           <span style={{ color: "#9ca3af", marginLeft: 7, fontSize: "0.72rem" }}>{scoreLabel[label]}</span>
         </span>
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: "0.78rem",
-          fontWeight: 600,
-          color,
-        }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.78rem", fontWeight: 600, color }}>
           {displayScore}
         </span>
       </div>
-      {/*
-        shadcn Progress: override indicator color via CSS variable --progress-color.
-        The global style below applies it to [role="progressbar"] > div.
-      */}
       <Progress
         value={barWidth}
         className="h-[4px]"
@@ -200,6 +254,8 @@ function LoadingSkeleton() {
       <Skeleton className="w-full rounded-xl" style={{ height: 190 }} />
       <Skeleton className="w-full rounded-xl" style={{ height: 140 }} />
       <Skeleton className="w-full rounded-xl" style={{ height: 160 }} />
+      <Skeleton className="w-full rounded-xl" style={{ height: 300 }} />
+      <Skeleton className="w-full rounded-xl" style={{ height: 80 }} />
     </div>
   );
 }
@@ -277,20 +333,27 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function SubLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p style={{
+      fontSize: "0.67rem",
+      color: "#9ca3af",
+      marginBottom: 10,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      letterSpacing: "0.04em",
+    }}>
+      {children}
+    </p>
+  );
+}
+
 function HR() {
   return <div style={{ height: 1, background: "#f3f4f6", margin: "16px 0" }} />;
 }
 
-// Shared card wrapper props
 const cardStyle: React.CSSProperties = { padding: "22px 24px" };
 
-function StyledCard({
-  children,
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-}) {
+function StyledCard({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
     <Card
       className="mb-3 border-[#e5e7eb] shadow-none"
@@ -306,19 +369,325 @@ function StyledCard({
   );
 }
 
+// ─── Tape shared styles ───────────────────────────────────────────────────────
+const monoCell: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: "0.7rem",
+  textAlign: "right",
+  whiteSpace: "nowrap",
+};
+const dateCell: React.CSSProperties = {
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: "0.68rem",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+  color: "#374151",
+};
+const thBase: React.CSSProperties = {
+  fontSize: "0.58rem",
+  color: "#9ca3af",
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  fontFamily: "'Plus Jakarta Sans', sans-serif",
+  paddingBottom: 6,
+  borderBottom: "1px solid #f3f4f6",
+  whiteSpace: "nowrap",
+};
+
+/** BlockProxy colored tag */
+function BlockTag({ bp }: { bp?: string | null }) {
+  if (!bp || bp.trim() === "") return <span style={{ ...monoCell, color: "#d1d5db" }}>--</span>;
+  const isDistrib = bp.includes("DISTRIB");
+  const isAbsorb = bp.includes("ABSORB");
+  const color = isDistrib ? "#dc2626" : isAbsorb ? "#16a34a" : "#d97706";
+  const bg = isDistrib ? "rgba(220,38,38,0.08)" : isAbsorb ? "rgba(22,163,74,0.08)" : "rgba(217,119,6,0.08)";
+  return (
+    <span style={{
+      fontSize: "0.62rem",
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      color, background: bg,
+      borderRadius: 4,
+      padding: "1px 5px",
+      whiteSpace: "nowrap",
+    }}>
+      {bp}
+    </span>
+  );
+}
+
+// ─── Module 6: Flow Tape ──────────────────────────────────────────────────────
+function FlowTapeModule({ tape }: { tape: TapeData }) {
+  const topBuy  = tape.top_buy  ?? [];
+  const topSell = tape.top_sell ?? [];
+  const monthly = tape.monthly  ?? [];
+  const blocks  = tape.blocks   ?? [];
+
+  // grid column templates
+  const dayCols   = "88px 58px 54px 54px 50px 54px 54px 60px";
+  const monthCols = "70px 58px 56px 62px 58px";
+  const blockCols = "88px 58px 54px 50px 54px 54px 60px 1fr";
+
+  const DAY_HEADERS   = ["日期", "收盘", "Ret%", "Buy%", "VolZ", "RangeQ", "CMF", "失衡"];
+  const MONTH_HEADERS = ["月份", "Buy%", "AvgVolZ", "AvgCMF", "上涨/总"];
+  const BLOCK_HEADERS = ["日期", "收盘", "Ret%", "VolZ", "RangeQ", "CMF", "失衡", "判断"];
+
+  function TableHeader({ cols, template, leftIdx }: { cols: string[]; template: string; leftIdx?: number[] }) {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: template, gap: "0 4px", marginBottom: 2 }}>
+        {cols.map((h, i) => (
+          <span key={h} style={{ ...thBase, textAlign: (leftIdx ?? [0]).includes(i) ? "left" : "right" }}>{h}</span>
+        ))}
+      </div>
+    );
+  }
+
+  function DayRow({ row }: { row: TapeDayRow }) {
+    const hasBp = !!(row.BlockProxy?.trim());
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: dayCols, gap: "0 4px", padding: "4px 0", borderBottom: "1px solid #fafafa", alignItems: "center" }}>
+        <span style={dateCell}>{row.Date ?? "--"}</span>
+        <span style={{ ...monoCell, color: "#0f0f0f" }}>{fmt(row.Close)}</span>
+        <span style={{ ...monoCell, color: signColor(row["Ret%"]) }}>{fmtPct(row["Ret%"])}</span>
+        <span style={{ ...monoCell, color: buyPctColor(row["Buy%"]) }}>{fmtPct(row["Buy%"])}</span>
+        <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.VolZ, 3)}</span>
+        <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.RangeQ, 3)}</span>
+        <span style={{ ...monoCell, color: signColor(row.CMF) }}>{fmt(row.CMF, 3)}</span>
+        <span style={{ ...monoCell, color: signColor(row.Imbalance), fontWeight: hasBp ? 700 : 400 }}>
+          {fmt(row.Imbalance, 3)}
+          {hasBp && (
+            <span style={{ marginLeft: 3, fontSize: "0.55rem", background: "rgba(220,38,38,0.1)", color: "#dc2626", borderRadius: 3, padding: "0 3px" }}>!</span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
+  const hasAny = topBuy.length > 0 || topSell.length > 0 || monthly.length > 0 || blocks.length > 0;
+
+  if (!hasAny) {
+    return <p style={{ fontSize: "0.75rem", color: "#d1d5db", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>暂无 Flow Tape 数据</p>;
+  }
+
+  return (
+    <>
+      {/* 9.1 Top Buy Days */}
+      {topBuy.length > 0 && (
+        <div style={{ marginBottom: 4 }}>
+          <SubLabel>9.1  最近 ~6个月 Top 买盘日（BuyProxyVol 最大）</SubLabel>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 540 }}>
+              <TableHeader cols={DAY_HEADERS} template={dayCols} leftIdx={[0]} />
+              {topBuy.map((row, i) => <DayRow key={i} row={row} />)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9.2 Top Sell Days */}
+      {topSell.length > 0 && (
+        <div style={{ marginBottom: 4 }}>
+          <HR />
+          <SubLabel>9.2  最近 ~6个月 Top 卖压日（SellProxyVol 最大）</SubLabel>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 540 }}>
+              <TableHeader cols={DAY_HEADERS} template={dayCols} leftIdx={[0]} />
+              {topSell.map((row, i) => <DayRow key={i} row={row} />)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9.3 Monthly */}
+      {monthly.length > 0 && (
+        <div style={{ marginBottom: 4 }}>
+          <HR />
+          <SubLabel>9.3  按月汇总（买盘代理 vs 卖盘代理）</SubLabel>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 340 }}>
+              <TableHeader cols={MONTH_HEADERS} template={monthCols} leftIdx={[0]} />
+              {monthly.map((row, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: monthCols, gap: "0 4px", padding: "4px 0", borderBottom: "1px solid #fafafa", alignItems: "center" }}>
+                  <span style={dateCell}>{row.Month ?? "--"}</span>
+                  <span style={{ ...monoCell, color: buyPctColor(row.BuyPct_Month) }}>{fmtPct(row.BuyPct_Month)}</span>
+                  <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.AvgVolZ, 3)}</span>
+                  <span style={{ ...monoCell, color: signColor(row.AvgCMF) }}>{fmt(row.AvgCMF, 4)}</span>
+                  <span style={{ ...monoCell, color: "#374151" }}>{row.UpDays ?? "--"}/{row.Days ?? "--"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 9.4 Block / 隐埋大单 */}
+      {blocks.length > 0 && (
+        <div>
+          <HR />
+          <SubLabel>9.4  "隐埋大单 / 大额异动"代理日（异常放量 + 窄幅波动）</SubLabel>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 540 }}>
+              <TableHeader cols={BLOCK_HEADERS} template={blockCols} leftIdx={[0, 7]} />
+              {blocks.map((row, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: blockCols, gap: "0 4px", padding: "4px 0", borderBottom: "1px solid #fafafa", alignItems: "center" }}>
+                  <span style={dateCell}>{row.Date ?? "--"}</span>
+                  <span style={{ ...monoCell, color: "#0f0f0f" }}>{fmt(row.Close)}</span>
+                  <span style={{ ...monoCell, color: signColor(row["Ret%"]) }}>{fmtPct(row["Ret%"])}</span>
+                  <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.Vol_Z, 3)}</span>
+                  <span style={{ ...monoCell, color: "#374151" }}>{fmt(row.Range_Q, 3)}</span>
+                  <span style={{ ...monoCell, color: signColor(row.CMF) }}>{fmt(row.CMF, 3)}</span>
+                  <span style={{ ...monoCell, color: signColor(row.Imbalance) }}>{fmt(row.Imbalance, 3)}</span>
+                  <BlockTag bp={row.BlockProxy} />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Legend */}
+          <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: "6px 20px" }}>
+            {[
+              { dot: "#16a34a", text: "ABSORB?：偏吸筹嫌疑（放量但不大跌 / 资金不弱）" },
+              { dot: "#dc2626", text: "DISTRIB?：偏派发嫌疑（放量但不大涨 / 资金偏弱）" },
+            ].map(({ dot, text }) => (
+              <div key={text} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                <span style={{ fontSize: "0.65rem", color: "#6b7280", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Module 7: Objective Summary ─────────────────────────────────────────────
+// Logic mirrors Python QuantCoreResearchPro print_flow_tape section 10
+function ObjectiveSummary({ data }: { data: QuantData }) {
+  const { scores, score: overall, bottom } = data;
+  const trendS = scores.Trend;
+  const flowS  = scores.Flow;
+  const valS   = scores.Valuation;
+  const twS    = scores.Tailwind;
+
+  // ── stance ──
+  let stance: string;
+  if (isValid(trendS) && isValid(flowS)) {
+    if (trendS >= 65 && flowS >= 60) {
+      stance = "多头结构占优（趋势 + 资金同步偏强）";
+    } else if (trendS <= 35 && flowS <= 40) {
+      stance = "空头结构占优（趋势 + 资金同步偏弱）";
+    } else {
+      stance = "多空拉锯（结构未统一，关注关键价位与资金确认）";
+    }
+  } else {
+    stance = "中性 / 数据不足";
+  }
+
+  // ── narrative ──
+  let narrative = "";
+  if (isValid(twS) && isValid(valS)) {
+    if (twS < 40 && valS < 40) {
+      narrative = "行业逆风 + 估值不便宜，反弹更依赖确认而非主观抄底";
+    } else if (twS < 40 && valS > 60) {
+      narrative = "行业逆风但估值偏便宜，若出现资金回流更像“错杀修复”";
+    } else if (twS > 60) {
+      narrative = "行业顺风期，趋势延续概率更高";
+    }
+  }
+
+  const overallStr = isValid(overall) ? overall.toFixed(0) : "--";
+  const verdict = bottom.verdict;
+  const verdictColorMap: Record<string, string> = { BUY: "#16a34a", WATCH: "#d97706", NO: "#dc2626" };
+  const vColor = verdictColorMap[verdict] ?? "#9ca3af";
+
+  return (
+    <div style={{ background: "#fafafa", borderRadius: 10, padding: "18px 20px" }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        {/* accent bar */}
+        <div style={{ width: 3, minHeight: 44, borderRadius: 2, background: vColor, flexShrink: 0, alignSelf: "stretch" }} />
+
+        <div style={{ flex: 1 }}>
+          {/* stance */}
+          <p style={{
+            fontSize: "0.84rem",
+            color: "#0f0f0f",
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: 600,
+            lineHeight: 1.5,
+            marginBottom: 10,
+          }}>
+            {stance}
+          </p>
+
+          {/* tags */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "5px 8px" }}>
+            <span style={{ fontSize: "0.67rem", color: "#9ca3af", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Bottom</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: "0.69rem",
+              fontWeight: 700,
+              color: vColor,
+              background: vColor + "18",
+              padding: "1px 8px",
+              borderRadius: 5,
+            }}>
+              {verdict}
+            </span>
+            <span style={{ fontSize: "0.67rem", color: "#9ca3af", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>综合评分</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: "0.69rem",
+              fontWeight: 700,
+              color: scoreColor(overall),
+            }}>
+              {overallStr}
+            </span>
+
+            {/* dimension pills */}
+            {(["Trend", "Flow", "Tailwind", "Valuation"] as const).map(k => {
+              const v = scores[k];
+              if (!isValid(v)) return null;
+              return (
+                <span key={k} style={{
+                  fontSize: "0.63rem",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  color: scoreColor(v),
+                  background: scoreBg(v),
+                  padding: "1px 6px",
+                  borderRadius: 4,
+                }}>
+                  {scoreLabel[k]} {v.toFixed(0)}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* narrative */}
+          {narrative && (
+            <p style={{
+              marginTop: 12,
+              fontSize: "0.77rem",
+              color: "#6b7280",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              lineHeight: 1.6,
+              borderLeft: "2px solid #e5e7eb",
+              paddingLeft: 10,
+            }}>
+              {narrative}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── ResultPanel ──────────────────────────────────────────────────────────────
 function ResultPanel({ data }: { data: QuantData }) {
   return (
     <>
       {/* ── Module 1: Score Overview ── */}
       <StyledCard delay={0}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-        }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 160 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
               <span style={{
@@ -331,29 +700,16 @@ function ResultPanel({ data }: { data: QuantData }) {
               }}>
                 {data.ticker}
               </span>
-              <span style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: "1.05rem",
-                color: "#9ca3af",
-              }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.05rem", color: "#9ca3af" }}>
                 {fmt(data.price)}
               </span>
             </div>
-            <p style={{
-              fontSize: "0.72rem",
-              color: "#9ca3af",
-              marginBottom: 16,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}>
+            <p style={{ fontSize: "0.72rem", color: "#9ca3af", marginBottom: 16, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               综合量化评分
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <VerdictBadge verdict={data.bottom.verdict} />
-              <span style={{
-                fontSize: "0.75rem",
-                color: "#6b7280",
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-              }}>
+              <span style={{ fontSize: "0.75rem", color: "#6b7280", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {verdictLabel[data.bottom.verdict]}
               </span>
             </div>
@@ -375,12 +731,7 @@ function ResultPanel({ data }: { data: QuantData }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <SectionLabel>抄底判定器</SectionLabel>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: "0.88rem",
-              fontWeight: 600,
-              color: scoreColor(data.bottom.score),
-            }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.88rem", fontWeight: 600, color: scoreColor(data.bottom.score) }}>
               {data.bottom.score}
               <span style={{ color: "#9ca3af", fontWeight: 400, fontSize: "0.7rem" }}>/100</span>
             </span>
@@ -390,9 +741,7 @@ function ResultPanel({ data }: { data: QuantData }) {
 
         {data.bottom.good.length > 0 && (
           <div style={{ marginBottom: 4 }}>
-            <p style={{ fontSize: "0.67rem", color: "#9ca3af", marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.04em" }}>
-              已满足条件
-            </p>
+            <SubLabel>已满足条件</SubLabel>
             {data.bottom.good.map((g, i) => (
               <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
                 <span style={{ fontSize: "0.78rem", flexShrink: 0, lineHeight: "1.5" }}>✅</span>
@@ -401,38 +750,28 @@ function ResultPanel({ data }: { data: QuantData }) {
             ))}
           </div>
         )}
-
         {data.bottom.bad.length > 0 && (
           <>
             {data.bottom.good.length > 0 && <HR />}
-            <div>
-              <p style={{ fontSize: "0.67rem", color: "#9ca3af", marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.04em" }}>
-                风险 / 不足
-              </p>
-              {data.bottom.bad.map((b, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
-                  <span style={{ fontSize: "0.78rem", flexShrink: 0, lineHeight: "1.5" }}>⚠️</span>
-                  <span style={{ fontSize: "0.82rem", color: "#374151", fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.55 }}>{b}</span>
-                </div>
-              ))}
-            </div>
+            <SubLabel>风险 / 不足</SubLabel>
+            {data.bottom.bad.map((b, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: "0.78rem", flexShrink: 0, lineHeight: "1.5" }}>⚠️</span>
+                <span style={{ fontSize: "0.82rem", color: "#374151", fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.55 }}>{b}</span>
+              </div>
+            ))}
           </>
         )}
-
         {data.bottom.trigger.length > 0 && (
           <>
             <HR />
-            <div>
-              <p style={{ fontSize: "0.67rem", color: "#9ca3af", marginBottom: 10, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.04em" }}>
-                触发条件
-              </p>
-              {data.bottom.trigger.map((t, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
-                  <span style={{ fontSize: "0.78rem", flexShrink: 0, lineHeight: "1.5" }}>🔔</span>
-                  <span style={{ fontSize: "0.82rem", color: "#374151", fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.55 }}>{t}</span>
-                </div>
-              ))}
-            </div>
+            <SubLabel>触发条件</SubLabel>
+            {data.bottom.trigger.map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: "0.78rem", flexShrink: 0, lineHeight: "1.5" }}>🔔</span>
+                <span style={{ fontSize: "0.82rem", color: "#374151", fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.55 }}>{t}</span>
+              </div>
+            ))}
           </>
         )}
       </StyledCard>
@@ -440,11 +779,7 @@ function ResultPanel({ data }: { data: QuantData }) {
       {/* ── Module 4: Technical Indicators ── */}
       <StyledCard delay={180}>
         <SectionLabel>关键技术指标</SectionLabel>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))",
-          gap: 8,
-        }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))", gap: 8 }}>
           <MetricCard label="收盘价" value={fmt(data.last.Close)} />
           <MetricCard label="MA10" value={fmt(data.last.MA10)} />
           <MetricCard label="MA20" value={fmt(data.last.MA20)} />
@@ -452,12 +787,8 @@ function ResultPanel({ data }: { data: QuantData }) {
           <MetricCard label="MA200" value={fmt(data.last.MA200)} />
           <MetricCard label="RSI" value={fmt(data.last.RSI)} />
           <MetricCard label="CMF" value={fmt(data.last.CMF, 4)} />
-          {/* DD_252 needs its own null guard since it requires multiplication */}
-          <MetricCard
-            label="年内回撤"
-            value={data.last.DD_252 != null ? `${(data.last.DD_252 * 100).toFixed(1)}%` : "—"}
-          />
-          <MetricCard label="买入占比" value={data.last.BuyPct != null ? `${fmt(data.last.BuyPct)}%` : "—"} />
+          <MetricCard label="年内回撤" value={isValid(data.last.DD_252) ? `${(data.last.DD_252 * 100).toFixed(1)}%` : "--"} />
+          <MetricCard label="买入占比" value={isValid(data.last.BuyPct) ? `${fmt(data.last.BuyPct)}%` : "--"} />
           <MetricCard label="风险预算" value={fmt(data.last.Risk_Budget, 2)} />
         </div>
       </StyledCard>
@@ -467,9 +798,7 @@ function ResultPanel({ data }: { data: QuantData }) {
         <SectionLabel>基本面注释</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
           <div>
-            <p style={{ fontSize: "0.67rem", color: "#9ca3af", marginBottom: 12, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.04em" }}>
-              质量指标
-            </p>
+            <SubLabel>质量指标</SubLabel>
             {data.q_notes.map((n, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#16a34a", flexShrink: 0 }} />
@@ -478,9 +807,7 @@ function ResultPanel({ data }: { data: QuantData }) {
             ))}
           </div>
           <div>
-            <p style={{ fontSize: "0.67rem", color: "#9ca3af", marginBottom: 12, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.04em" }}>
-              估值指标
-            </p>
+            <SubLabel>估值指标</SubLabel>
             {data.v_notes.map((n, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
@@ -489,6 +816,37 @@ function ResultPanel({ data }: { data: QuantData }) {
             ))}
           </div>
         </div>
+      </StyledCard>
+
+      {/* ── Module 6: Flow Tape ── */}
+      {data.tape && (
+        <StyledCard delay={300}>
+          <SectionLabel>Flow Tape · 资金流向明细</SectionLabel>
+          <p style={{
+            fontSize: "0.67rem",
+            color: "#9ca3af",
+            marginBottom: 18,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            lineHeight: 1.6,
+          }}>
+            以下不是「真实多空成交」，而是日线买卖压力代理，可复现 / 可验证
+          </p>
+          <FlowTapeModule tape={data.tape} />
+        </StyledCard>
+      )}
+
+      {/* ── Module 7: Objective Summary ── */}
+      <StyledCard delay={360}>
+        <SectionLabel>一句话客观总评</SectionLabel>
+        <p style={{
+          fontSize: "0.67rem",
+          color: "#9ca3af",
+          marginBottom: 14,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}>
+          基于证据，不是建议
+        </p>
+        <ObjectiveSummary data={data} />
       </StyledCard>
     </>
   );
@@ -533,17 +891,10 @@ export default function Home() {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
-
-        /*
-          Override shadcn Progress indicator color.
-          shadcn renders: <div role="progressbar"><div class="bg-primary" /></div>
-          We set --progress-color on the outer element and apply it to the inner fill.
-        */
         [role="progressbar"] > div {
           background-color: var(--progress-color, #9ca3af) !important;
           transition: width 1s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
-
         button:hover:not(:disabled) {
           background: #1a1a1a !important;
         }
@@ -570,12 +921,7 @@ export default function Home() {
                   stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span style={{
-              fontFamily: "'Instrument Serif', serif",
-              fontSize: "1.1rem",
-              color: "#0f0f0f",
-              letterSpacing: "-0.01em",
-            }}>
+            <span style={{ fontFamily: "'Instrument Serif', serif", fontSize: "1.1rem", color: "#0f0f0f", letterSpacing: "-0.01em" }}>
               Qianting
             </span>
           </div>
@@ -680,13 +1026,7 @@ export default function Home() {
           </div>
 
           {error && (
-            <p style={{
-              marginTop: 8,
-              fontSize: "0.77rem",
-              color: "#dc2626",
-              paddingLeft: 4,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}>
+            <p style={{ marginTop: 8, fontSize: "0.77rem", color: "#dc2626", paddingLeft: 4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               ⚠ {error}
             </p>
           )}
@@ -697,8 +1037,7 @@ export default function Home() {
         {!loading && data && <ResultPanel data={data} />}
         {!loading && !data && !error && (
           <div style={{ textAlign: "center", paddingTop: 56 }}>
-            <svg width="44" height="44" viewBox="0 0 44 44" fill="none"
-              style={{ margin: "0 auto 12px", display: "block" }}>
+            <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ margin: "0 auto 12px", display: "block" }}>
               <rect width="44" height="44" rx="11" fill="#f9fafb" />
               <path d="M10 32 L16 22 L22 26 L28 16 L34 19"
                 stroke="#e5e7eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
