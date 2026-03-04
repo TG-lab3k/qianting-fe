@@ -95,7 +95,7 @@ interface QuantData {
 }
 
 interface ApiResponse {
-  status: number;
+  code: number;
   data: QuantData;
 }
 
@@ -919,7 +919,7 @@ export default function Home() {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: ApiResponse = await res.json();
-      if (json.status !== 0) throw new Error("接口返回异常");
+      if (json.code !== 0) throw new Error("接口返回异常");
       setData(json.data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "请求失败，请稍后重试");
