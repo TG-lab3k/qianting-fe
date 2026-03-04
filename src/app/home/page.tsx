@@ -831,14 +831,13 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setData(null);
-    try {
-      const result = await Apis.analyze(sym);
-      setData(result);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "请求失败，请稍后重试");
-    } finally {
-      setLoading(false);
+    const result = await Apis.analyze(sym);
+    if (result.ok) {
+      setData(result.data);
+    } else {
+      setError(result.errorMessage);
     }
+    setLoading(false);
   }, []);
 
   return (

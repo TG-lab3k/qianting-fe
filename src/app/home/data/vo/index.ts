@@ -8,4 +8,3 @@ export type {
   TapeDataVo,
 } from "./tape.vo";
 export type { QuantDataVo } from "./quant-data.vo";
-export type { AnalyzeApiResponseVo } from "./analyze-response.vo";

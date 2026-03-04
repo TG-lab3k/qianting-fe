@@ -19,6 +19,25 @@ export interface HttpResponse<T> {
   headers?: Record<string, string>;
 }
 
+/** 服务端返回 code 非 0 时抛出，携带 code 与 message */
+export class ApiError extends Error {
+  code: number;
+  override message: string;
+  constructor(code: number, message?: string) {
+    const msg = message ?? "接口异常";
+    super(msg);
+    this.name = "ApiError";
+    this.code = code;
+    this.message = msg;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
+/** 请求结果：成功为 { ok: true, data }，失败为 { ok: false, errorCode, errorMessage } */
+export type Result<T> =
+  | { ok: true; data: T }
+  | { ok: false; errorCode: number; errorMessage: string };
+
 // ─── Singleton & token state ─────────────────────────────────────────────────
 
 let instance: ReturnType<typeof axios.create> | null = null;
@@ -60,6 +79,8 @@ export function initHttpClient(options: InitHttpClientOptions = {}): void {
     }
     return config;
   });
+
+  // 不再在拦截器中根据 body.code 抛错，改为在 get/post 等中返回 Result
 }
 
 export function setAuthToken(token: string | null): void {
@@ -108,55 +129,99 @@ function toHttpResponse<T>(res: AxiosResponse<T>): HttpResponse<T> {
   };
 }
 
+/** 根据响应 body 的 code/status 转为 Result，不抛错；成功直接返回 body */
+function toResult<T>(res: AxiosResponse<T>): Result<T> {
+  const body = res.data;
+  if (body != null && typeof body === "object") {
+    const code = (body as { code?: number; status?: number }).code ?? (body as { code?: number; status?: number }).status;
+    if (code !== undefined && code !== 0) {
+      const msg = (body as { message?: string }).message ?? "接口异常";
+      return { ok: false, errorCode: code, errorMessage: msg };
+    }
+  }
+  return { ok: true, data: res.data };
+}
+
+/** 将响应 body 转为 Result<T>：T 为业务层传入的 payload 类型，成功时只返回 body.data（即 HttpResponse.data） */
+function toResultHttpResponse<T>(
+  res: AxiosResponse<Record<string, unknown> & { data?: T }>
+): Result<T> {
+  const body = res.data;
+  if (body != null && typeof body === "object") {
+    const code = (body as { code?: number; status?: number }).code ?? (body as { code?: number; status?: number }).status;
+    if (code !== undefined && code !== 0) {
+      const msg = (body as { message?: string }).message ?? "接口异常";
+      return { ok: false, errorCode: code, errorMessage: msg };
+    }
+  }
+  const payload =
+    body != null && typeof body === "object" && "data" in body && (body as { data?: T }).data !== undefined
+      ? (body as { data: T }).data
+      : (res.data as T);
+  return { ok: true, data: payload };
+}
+
+function toFailedResult(err: unknown): Result<never> {
+  const errorCode = err instanceof ApiError ? err.code : -1;
+  const errorMessage =
+    err instanceof ApiError ? err.message : err instanceof Error ? err.message : "请求失败";
+  return { ok: false, errorCode, errorMessage };
+}
+
 export function get<T>(
   url: string,
   config?: HttpRequestConfig
-): Promise<HttpResponse<T>> {
+): Promise<Result<T>> {
   const inst = ensureInitialized();
   return inst
-    .get<T>(url, toAxiosConfig(config))
-    .then(toHttpResponse);
+    .get<Record<string, unknown> & { data?: T }>(url, toAxiosConfig(config))
+    .then(toResultHttpResponse)
+    .catch(toFailedResult);
 }
 
 export function post<T>(
   url: string,
   data?: unknown,
   config?: HttpRequestConfig
-): Promise<HttpResponse<T>> {
+): Promise<Result<T>> {
   const inst = ensureInitialized();
   return inst
-    .post<T>(url, data, toAxiosConfig(config))
-    .then(toHttpResponse);
+    .post<Record<string, unknown> & { data?: T }>(url, data, toAxiosConfig(config))
+    .then(toResultHttpResponse)
+    .catch(toFailedResult);
 }
 
 export function put<T>(
   url: string,
   data?: unknown,
   config?: HttpRequestConfig
-): Promise<HttpResponse<T>> {
+): Promise<Result<T>> {
   const inst = ensureInitialized();
   return inst
-    .put<T>(url, data, toAxiosConfig(config))
-    .then(toHttpResponse);
+    .put<Record<string, unknown> & { data?: T }>(url, data, toAxiosConfig(config))
+    .then(toResultHttpResponse)
+    .catch(toFailedResult);
 }
 
 export function patch<T>(
   url: string,
   data?: unknown,
   config?: HttpRequestConfig
-): Promise<HttpResponse<T>> {
+): Promise<Result<T>> {
   const inst = ensureInitialized();
   return inst
-    .patch<T>(url, data, toAxiosConfig(config))
-    .then(toHttpResponse);
+    .patch<Record<string, unknown> & { data?: T }>(url, data, toAxiosConfig(config))
+    .then(toResultHttpResponse)
+    .catch(toFailedResult);
 }
 
 export function del<T>(
   url: string,
   config?: HttpRequestConfig
-): Promise<HttpResponse<T>> {
+): Promise<Result<T>> {
   const inst = ensureInitialized();
   return inst
-    .delete<T>(url, toAxiosConfig(config))
-    .then(toHttpResponse);
+    .delete<Record<string, unknown> & { data?: T }>(url, toAxiosConfig(config))
+    .then(toResultHttpResponse)
+    .catch(toFailedResult);
 }
