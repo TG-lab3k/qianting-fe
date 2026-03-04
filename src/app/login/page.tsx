@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { authLogin, saveAuthToStorage } from "@/core/auth";
 import { getUserManager } from "@/core/user";
 import { signInWithGoogle, getIdToken } from "@/core/firebase";
+import { GoogleLogo } from "@/components/ui/google-logo";
 
 function LoginContent() {
   const router = useRouter();
@@ -114,8 +115,13 @@ function LoginContent() {
             borderRadius: 8,
             cursor: loading ? "not-allowed" : "pointer",
             opacity: loading ? 0.7 : 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
           }}
         >
+          <GoogleLogo />
           {loading ? "登录中…" : "使用 Google 登录"}
         </button>
         <p style={{ marginTop: 20, fontSize: "0.8rem", color: "#9ca3af" }}>
