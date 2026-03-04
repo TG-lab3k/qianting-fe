@@ -125,3 +125,5 @@ export function getUserManager(): UserManager {
   }
   return instance;
 }
+
+export { useUser } from "./useUser";

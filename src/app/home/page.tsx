@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 // shadcn/ui components
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 
+import { useUser, getUserManager } from "@/core/user";
+import { authLogout, clearAuthFromStorage } from "@/core/auth";
 import { Apis } from "./data/apis";
 import type {
   QuantDataVo,
@@ -819,11 +822,26 @@ function ResultPanel({ data }: { data: QuantDataVo }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
+  const router = useRouter();
+  const user = useUser();
   const [ticker, setTicker] = useState("");
   const [data, setData] = useState<QuantDataVo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const handleLogout = useCallback(async () => {
+    setLogoutLoading(true);
+    try {
+      await authLogout();
+    } finally {
+      clearAuthFromStorage();
+      getUserManager().logout();
+      setLogoutLoading(false);
+      router.push("/");
+    }
+  }, [router]);
 
   const search = useCallback(async (t: string) => {
     const sym = t.trim().toUpperCase();
@@ -884,33 +902,68 @@ export default function Home() {
               Qianting
             </span>
           </div>
-          <a
-            href="/login"
-            style={{
-              padding: "8px 16px",
-              borderRadius: 7,
-              border: "none",
-              background: "#0f0f0f",
-              color: "#fff",
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              transition: "background 0.15s",
-              letterSpacing: "0.01em",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = "#1a1a1a";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = "#0f0f0f";
-            }}
-          >
-            登录
-          </a>
+          {user.token ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt=""
+                  width={28}
+                  height={28}
+                  style={{ borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : null}
+              <span style={{ fontSize: "0.82rem", color: "#374151", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {user.name || "用户"}
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutLoading}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 7,
+                  border: "1px solid #e5e7eb",
+                  background: "#fff",
+                  color: "#374151",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                  cursor: logoutLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {logoutLoading ? "退出中…" : "退出"}
+              </button>
+            </div>
+          ) : (
+            <a
+              href="/login"
+              style={{
+                padding: "8px 16px",
+                borderRadius: 7,
+                border: "none",
+                background: "#0f0f0f",
+                color: "#fff",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                transition: "background 0.15s",
+                letterSpacing: "0.01em",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = "#1a1a1a";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = "#0f0f0f";
+              }}
+            >
+              登录
+            </a>
+          )}
         </div>
       </header>
 

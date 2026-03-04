@@ -38,6 +38,16 @@ export type Result<T> =
   | { ok: true; data: T }
   | { ok: false; errorCode: number; errorMessage: string };
 
+// ─── API base (single source of truth for server host) ───────────────────────
+
+/** 服务端 API 根地址，供 initHttpClient 默认 baseURL 及需要绝对 URL 的场景使用 */
+export const API_BASE =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE
+    ? process.env.NEXT_PUBLIC_API_BASE
+    : typeof process !== "undefined" && process.env.NODE_ENV === "development"
+      ? "http://localhost:8080"
+      : "https://api.qianting.xyz";
+
 // ─── Singleton & token state ─────────────────────────────────────────────────
 
 let instance: ReturnType<typeof axios.create> | null = null;
@@ -68,7 +78,7 @@ export function initHttpClient(options: InitHttpClientOptions = {}): void {
   tokenValue = token ?? null;
 
   instance = axios.create({
-    baseURL: baseURL ?? "",
+    baseURL: baseURL ?? API_BASE,
     timeout: 30000,
   });
 
