@@ -4,6 +4,7 @@ import {
   JetBrains_Mono,
   Plus_Jakarta_Sans,
 } from "next/font/google";
+import { HttpClientInit } from "./HttpClientInit";
 import "./globals.css";
 
 // ─── Fonts ────────────────────────────────────────────────────────────────────
@@ -55,7 +56,10 @@ export default function RootLayout({
         plusJakartaSans.variable,
       ].join(" ")}
     >
-      <body>{children}</body>
+      <body>
+        <HttpClientInit />
+        {children}
+      </body>
     </html>
   );
 }

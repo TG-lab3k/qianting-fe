@@ -8,96 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface BottomData {
-  score: number;
-  verdict: "BUY" | "WATCH" | "NO";
-  good: string[];
-  bad: string[];
-  trigger: string[];
-}
-
-interface ScoresData {
-  Macro: number | null;
-  Trend: number | null;
-  Flow: number | null;
-  Bottom: number | null;
-  Quality: number | null;
-  Valuation: number | null;
-  Tailwind: number | null;
-}
-
-interface LastData {
-  Close: number | null;
-  MA10: number | null;
-  MA20: number | null;
-  MA50: number | null;
-  MA200: number | null;
-  RSI: number | null;
-  CMF: number | null;
-  DD_252: number | null;
-  Vol_Z: number | null;
-  BuyPct: number | null;
-  Imbalance: number | null;
-  Risk_Budget: number | null;
-}
-
-// ─── Tape Types ───────────────────────────────────────────────────────────────
-interface TapeDayRow {
-  Date?: string | null;
-  Close?: number | null;
-  "Ret%"?: number | null;
-  "Buy%"?: number | null;
-  VolZ?: number | null;
-  RangeQ?: number | null;
-  CMF?: number | null;
-  Imbalance?: number | null;
-  BlockProxy?: string | null;
-}
-
-interface BlockRow {
-  Date?: string | null;
-  Close?: number | null;
-  "Ret%"?: number | null;
-  Vol_Z?: number | null;
-  Range_Q?: number | null;
-  CMF?: number | null;
-  Imbalance?: number | null;
-  BlockProxy?: string | null;
-}
-
-interface MonthlyRow {
-  Month?: string | null;
-  BuyPct_Month?: number | null;
-  AvgVolZ?: number | null;
-  AvgCMF?: number | null;
-  UpDays?: number | null;
-  Days?: number | null;
-}
-
-interface TapeData {
-  top_buy?: TapeDayRow[];
-  top_sell?: TapeDayRow[];
-  monthly?: MonthlyRow[];
-  blocks?: BlockRow[];
-}
-
-interface QuantData {
-  ticker: string;
-  score: number;
-  price: number;
-  bottom: BottomData;
-  scores: ScoresData;
-  last: LastData;
-  q_notes: string[];
-  v_notes: string[];
-  tape?: TapeData;
-}
-
-interface ApiResponse {
-  code: number;
-  data: QuantData;
-}
+import { Apis } from "./data/apis";
+import type {
+  QuantDataVo,
+  TapeDataVo,
+  TapeDayRowVo,
+  BlockRowVo,
+  MonthlyRowVo,
+} from "./data/vo";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -416,7 +334,7 @@ function BlockTag({ bp }: { bp?: string | null }) {
 }
 
 // ─── Module 6: Flow Tape ──────────────────────────────────────────────────────
-function FlowTapeModule({ tape }: { tape: TapeData }) {
+function FlowTapeModule({ tape }: { tape: TapeDataVo }) {
   const topBuy  = tape.top_buy  ?? [];
   const topSell = tape.top_sell ?? [];
   const monthly = tape.monthly  ?? [];
@@ -441,7 +359,7 @@ function FlowTapeModule({ tape }: { tape: TapeData }) {
     );
   }
 
-  function DayRow({ row }: { row: TapeDayRow }) {
+  function DayRow({ row }: { row: TapeDayRowVo }) {
     const hasBp = !!(row.BlockProxy?.trim());
     return (
       <div style={{ display: "grid", gridTemplateColumns: dayCols, gap: "0 4px", padding: "4px 0", borderBottom: "1px solid #fafafa", alignItems: "center" }}>
@@ -594,7 +512,7 @@ function FlowTapeModule({ tape }: { tape: TapeData }) {
 
 // ─── Module 7: Objective Summary ─────────────────────────────────────────────
 // Logic mirrors Python QuantCoreResearchPro print_flow_tape section 10
-function ObjectiveSummary({ data }: { data: QuantData }) {
+function ObjectiveSummary({ data }: { data: QuantDataVo }) {
   const { scores, score: overall, bottom } = data;
   const trendS = scores.Trend;
   const flowS  = scores.Flow;
@@ -715,7 +633,7 @@ function ObjectiveSummary({ data }: { data: QuantData }) {
 }
 
 // ─── ResultPanel ──────────────────────────────────────────────────────────────
-function ResultPanel({ data }: { data: QuantData }) {
+function ResultPanel({ data }: { data: QuantDataVo }) {
   return (
     <>
       {/* ── Module 1: Score Overview ── */}
@@ -902,7 +820,7 @@ function ResultPanel({ data }: { data: QuantData }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [ticker, setTicker] = useState("");
-  const [data, setData] = useState<QuantData | null>(null);
+  const [data, setData] = useState<QuantDataVo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
@@ -914,13 +832,8 @@ export default function Home() {
     setError(null);
     setData(null);
     try {
-      const res = await fetch(
-        `https://api.qianting.xyz/analyze?ticker=${sym}`
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: ApiResponse = await res.json();
-      if (json.code !== 0) throw new Error("接口返回异常");
-      setData(json.data);
+      const result = await Apis.analyze(sym);
+      setData(result);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "请求失败，请稍后重试");
     } finally {
