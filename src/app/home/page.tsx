@@ -338,17 +338,17 @@ function BlockTag({ bp }: { bp?: string | null }) {
 
 // ─── Module 6: Flow Tape ──────────────────────────────────────────────────────
 function FlowTapeModule({ tape }: { tape: TapeDataVo }) {
-  const topBuy  = tape.top_buy  ?? [];
+  const topBuy = tape.top_buy ?? [];
   const topSell = tape.top_sell ?? [];
-  const monthly = tape.monthly  ?? [];
-  const blocks  = tape.blocks   ?? [];
+  const monthly = tape.monthly ?? [];
+  const blocks = tape.blocks ?? [];
 
   // grid column templates
-  const dayCols   = "88px 58px 54px 54px 50px 54px 54px 60px";
+  const dayCols = "88px 58px 54px 54px 50px 54px 54px 60px";
   const monthCols = "70px 58px 56px 62px 58px";
   const blockCols = "88px 58px 54px 50px 54px 54px 60px 1fr";
 
-  const DAY_HEADERS   = ["日期", "收盘", "Ret%", "Buy%", "VolZ", "RangeQ", "CMF", "失衡"];
+  const DAY_HEADERS = ["日期", "收盘", "Ret%", "Buy%", "VolZ", "RangeQ", "CMF", "失衡"];
   const MONTH_HEADERS = ["月份", "Buy%", "AvgVolZ", "AvgCMF", "上涨/总"];
   const BLOCK_HEADERS = ["日期", "收盘", "Ret%", "VolZ", "RangeQ", "CMF", "失衡", "判断"];
 
@@ -518,9 +518,9 @@ function FlowTapeModule({ tape }: { tape: TapeDataVo }) {
 function ObjectiveSummary({ data }: { data: QuantDataVo }) {
   const { scores, score: overall, bottom } = data;
   const trendS = scores.Trend;
-  const flowS  = scores.Flow;
-  const valS   = scores.Valuation;
-  const twS    = scores.Tailwind;
+  const flowS = scores.Flow;
+  const valS = scores.Valuation;
+  const twS = scores.Tailwind;
 
   // ── stance ──
   let stance: string;
@@ -849,13 +849,20 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setData(null);
-    const result = await Apis.analyze(sym);
-    if (result.ok) {
-      setData(result.data);
-    } else {
-      setError(result.errorMessage);
+    try {
+      const result = await Apis.analyze(sym);
+      if (result.ok) {
+        setData(result.data);
+      } else {
+        if (result.errorCode === 401) {
+          setError("请登录后再使用分析功能");
+        } else {
+          setError(result.errorMessage);
+        }
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   return (

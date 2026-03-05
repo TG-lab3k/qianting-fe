@@ -3,29 +3,29 @@ const KEY_USER_NAME = "user_name";
 const KEY_USER_AVATAR = "user_avatar";
 
 export function saveAuthToStorage(token: string, name: string, avatar: string): void {
-  if (typeof sessionStorage === "undefined") return;
-  sessionStorage.setItem(KEY_TOKEN, token);
-  sessionStorage.setItem(KEY_USER_NAME, name);
-  sessionStorage.setItem(KEY_USER_AVATAR, avatar);
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(KEY_TOKEN, token);
+  localStorage.setItem(KEY_USER_NAME, name);
+  localStorage.setItem(KEY_USER_AVATAR, avatar);
 }
 
 export function clearAuthFromStorage(): void {
-  if (typeof sessionStorage === "undefined") return;
-  sessionStorage.removeItem(KEY_TOKEN);
-  sessionStorage.removeItem(KEY_USER_NAME);
-  sessionStorage.removeItem(KEY_USER_AVATAR);
+  if (typeof localStorage === "undefined") return;
+  localStorage.removeItem(KEY_TOKEN);
+  localStorage.removeItem(KEY_USER_NAME);
+  localStorage.removeItem(KEY_USER_AVATAR);
 }
 
 export function getStoredToken(): string | null {
-  if (typeof sessionStorage === "undefined") return null;
-  return sessionStorage.getItem(KEY_TOKEN);
+  if (typeof localStorage === "undefined") return null;
+  return localStorage.getItem(KEY_TOKEN);
 }
 
 export function getStoredUser(): { name: string; avatar: string } | null {
-  if (typeof sessionStorage === "undefined") return null;
-  const token = sessionStorage.getItem(KEY_TOKEN);
+  if (typeof localStorage === "undefined") return null;
+  const token = localStorage.getItem(KEY_TOKEN);
   if (!token) return null;
-  const name = sessionStorage.getItem(KEY_USER_NAME) ?? "";
-  const avatar = sessionStorage.getItem(KEY_USER_AVATAR) ?? "";
+  const name = localStorage.getItem(KEY_USER_NAME) ?? "";
+  const avatar = localStorage.getItem(KEY_USER_AVATAR) ?? "";
   return { name, avatar };
 }

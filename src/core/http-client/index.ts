@@ -62,6 +62,26 @@ function resolveToken(): string | null {
   return tokenValue;
 }
 
+/** 将响应错误（如 AxiosError）转为 ApiError，供 toFailedResult 统一处理 */
+function responseErrorToApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) return error;
+  const err = error as { response?: { status: number; data?: unknown; statusText?: string }; message?: string };
+  if (err.response) {
+    const code = err.response.status;
+    const data = err.response.data;
+    const message =
+      data != null &&
+      typeof data === "object" &&
+      "message" in data &&
+      typeof (data as { message?: unknown }).message === "string"
+        ? (data as { message: string }).message
+        : err.response.statusText || (error instanceof Error ? error.message : "请求失败");
+    return new ApiError(code, message);
+  }
+  const message = error instanceof Error ? error.message : "请求失败";
+  return new ApiError(-1, message);
+}
+
 // ─── Initialization ──────────────────────────────────────────────────────────
 
 export interface InitHttpClientOptions {
@@ -90,7 +110,9 @@ export function initHttpClient(options: InitHttpClientOptions = {}): void {
     return config;
   });
 
-  // 不再在拦截器中根据 body.code 抛错，改为在 get/post 等中返回 Result
+  instance.interceptors.response.use(undefined, (error: unknown) =>
+    Promise.reject(responseErrorToApiError(error))
+  );
 }
 
 export function setAuthToken(token: string | null): void {
@@ -161,6 +183,7 @@ function toResultHttpResponse<T>(
     const code = (body as { code?: number; status?: number }).code ?? (body as { code?: number; status?: number }).status;
     if (code !== undefined && code !== 0) {
       const msg = (body as { message?: string }).message ?? "接口异常";
+      console.log(`toResultHttpResponse __ ${code} ${msg}`);
       return { ok: false, errorCode: code, errorMessage: msg };
     }
   }
@@ -172,9 +195,11 @@ function toResultHttpResponse<T>(
 }
 
 function toFailedResult(err: unknown): Result<never> {
+  console.log(`toFailedResult __ ${err}`);
   const errorCode = err instanceof ApiError ? err.code : -1;
   const errorMessage =
     err instanceof ApiError ? err.message : err instanceof Error ? err.message : "请求失败";
+  console.log(`toFailedResult __ ${errorCode} ${errorMessage}`);
   return { ok: false, errorCode, errorMessage };
 }
 

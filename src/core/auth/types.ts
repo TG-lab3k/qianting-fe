@@ -23,10 +23,8 @@ export interface LoginResData {
   user: AuthUser;
 }
 
-/** GET /auth/me 成功时 data 字段 */
-export interface MeResData {
-  user: AuthUser;
-}
+/** GET /auth/me 成功时 data 字段（扁平用户对象，见 AUTH_API_FRONTEND.md） */
+export type MeResData = AuthUser;
 
 /** POST /auth/logout 成功时无 data 或 message（后端返回 code:0, message:"ok"） */
 export interface LogoutResData {

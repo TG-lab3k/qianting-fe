@@ -25,7 +25,7 @@
 ### 3. GET /auth/me — 获取当前用户（校验 token）
 
 - **请求**：`GET {BASE_URL}/auth/me`，Header `Authorization: Bearer <access_token>`。
-- **成功**：`code === 0`，`data`: `{ user: { uid, email, display_name, photo_url, provider } }`。
+- **成功**：`code === 0`，`data`: `{ uid, email, display_name, photo_url, provider }`。
 - **错误**：HTTP 401（未登录或 token 无效/过期）或 503。
 
 ## 通用约定
@@ -39,7 +39,7 @@
 |----------------|------|
 | 类型与 API 封装 | `src/core/auth/`（types.ts, api.ts, storage.ts） |
 | Firebase 登录   | `src/core/firebase.ts`，登录页 `src/app/login/page.tsx` |
-| Token 持久化   | `sessionStorage`，读写见 `core/auth/storage.ts`；恢复在 `src/app/HttpClientInit.tsx` |
+| Token 持久化   | `localStorage`（多 Tab 共享），读写见 `core/auth/storage.ts`；恢复与校验在 `src/app/HttpClientInit.tsx`（有本地 token 时调用 GET /auth/me 校验并拉取用户信息） |
 | 登录态与登出   | `core/user`（UserManager + useUser），首页导航栏展示用户/退出 |
 
 ## 错误码

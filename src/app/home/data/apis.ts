@@ -18,7 +18,9 @@ export const Apis = {
     }
     const url = `/analyze?ticker=${encodeURIComponent(sym)}`;
     const res = await get<QuantDataVo>(url);
-    if (!res.ok) return { ok: false, errorCode: res.errorCode, errorMessage: res.errorMessage };
+    if (!res.ok) {
+      return { ok: false, errorCode: res.errorCode, errorMessage: res.errorMessage };
+    }
     return { ok: true, data: res.data };
   },
 };
