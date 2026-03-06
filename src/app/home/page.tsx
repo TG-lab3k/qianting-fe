@@ -737,7 +737,7 @@ function ResultPanel({ data }: { data: QuantDataVo }) {
           <MetricCard label="收盘价" value={fmt(data.last.Close)} />
           <MetricCard label="MA10" value={fmt(data.last.MA10)} />
           <MetricCard label="MA20" value={fmt(data.last.MA20)} />
-          <MetricCard label="MA50" value={fmt(data.last.MA50)} />
+          <MetricCard label="MA60" value={fmt(data.last.MA60)} />
           <MetricCard label="MA200" value={fmt(data.last.MA200)} />
           <MetricCard label="RSI" value={fmt(data.last.RSI)} />
           <MetricCard label="CMF" value={fmt(data.last.CMF, 4)} />

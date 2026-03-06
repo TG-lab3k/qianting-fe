@@ -2,7 +2,7 @@ export interface LastDataVo {
   Close: number | null;
   MA10: number | null;
   MA20: number | null;
-  MA50: number | null;
+  MA60: number | null;
   MA200: number | null;
   RSI: number | null;
   CMF: number | null;
