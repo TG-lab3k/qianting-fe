@@ -1,0 +1,36 @@
+---
+description: HTTP 请求与业务 API 封装约定
+globs: "**/core/http-client/**/*.ts,**/core/auth/**/*.ts,**/app/**/data/**/*.ts"
+alwaysApply: false
+---
+
+# HTTP 与 API 约定
+
+## 统一使用 http-client
+
+- 所有请求通过 `@/core/http-client` 的 `get`、`post`、`put`、`patch`、`del` 发起。
+- 初始化在应用入口完成（HttpClientInit 内 `initHttpClient({ getToken })`）；业务代码不再次 init，也不在业务层 `axios.create()` 或直接 `fetch()`。
+
+## Result 约定
+
+- http-client 返回 `Result<T>`：成功为 `{ ok: true, data: T }`，失败为 `{ ok: false, errorCode, errorMessage }`。
+- 不在拦截器内根据 body.code 抛错；由调用方根据 `res.ok` 分支处理。
+
+```typescript
+// 调用方示例
+const res = await get<QuantDataVo>(url);
+if (!res.ok) {
+  // 处理 res.errorCode, res.errorMessage
+  return;
+}
+const data = res.data; // T
+```
+
+## 业务 API 与 VO 位置
+
+- 各功能模块的接口封装写在 `src/app/<feature>/data/apis.ts`，内部调用 http-client 的 get/post 等。
+- 请求/响应的业务类型定义在同模块的 `data/vo/*.vo.ts`，apis 中引用这些 VO，保持类型与接口一一对应。
+
+## 后端 body 约定
+
+- 后端统一 body 形态：`{ code?, message?, data? }`；成功时 `code === 0`。http-client 已按此解析并返回 `Result<T>`（成功时 data 为 body.data 或 body 本身）。

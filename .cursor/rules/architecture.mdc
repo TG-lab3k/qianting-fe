@@ -1,0 +1,28 @@
+---
+description: 项目分层与目录约定，新功能放置位置
+alwaysApply: true
+---
+
+# qianting-fe 架构约定
+
+## 分层结构
+
+- **App 层**（`src/app/`）：Next App Router 路由与页面；根 layout、HttpClientInit、各 page。
+- **Core 层**（`src/core/`）：与框架解耦的核心能力——http-client、auth、user、firebase；不在 core 内依赖具体页面。
+- **功能数据层**（`src/app/<feature>/data/`）：各业务模块的接口封装（apis.ts）与 VO 类型（vo/*.vo.ts）。
+- **UI 层**（`src/components/ui/`、`src/lib/`）：通用组件与工具。
+
+## 路径别名
+
+- 使用 `@/` 引用 src 下文件，例如 `@/core/http-client`、`@/components/ui/button`。
+- 对应 tsconfig：`@/*` → `./src/*`。
+
+## 新功能如何加
+
+- 新页面/功能放在 `src/app/<feature>/` 下；该功能专属的接口与类型放在同级的 `data/apis.ts` 与 `data/vo/`。
+- 复用 core 的 http-client、auth、user，不要在各 feature 内再封装一套 HTTP 或认证单例。
+
+## 职责边界
+
+- **core**：提供 HTTP 客户端、认证 API、用户状态、Firebase 封装；不包含业务 VO 或页面组件。
+- **app/<feature>/data**：只负责该 feature 的 API 调用与入参/出参类型（VO），通过 core 的 http-client 发请求。
