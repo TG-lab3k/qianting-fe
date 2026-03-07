@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 // shadcn/ui components
@@ -287,6 +287,227 @@ function StyledCard({ children, delay = 0 }: { children: React.ReactNode; delay?
     >
       <CardContent style={cardStyle}>{children}</CardContent>
     </Card>
+  );
+}
+
+// ─── KDJ 近一周折线图 ─────────────────────────────────────────────────────────
+const KDJ_COLORS = { K: "#2563eb", D: "#ea580c", J: "#16a34a" } as const;
+const CHART_WIDTH = 560;
+const CHART_HEIGHT = 180;
+const PAD = { left: 40, right: 52, top: 12, bottom: 28 };
+const PLOT_W = CHART_WIDTH - PAD.left - PAD.right;
+const PLOT_H = CHART_HEIGHT - PAD.top - PAD.bottom;
+const PLOT_W_X = PLOT_W * 0.5;
+
+function KDJLineChart({ kdjWeek }: { kdjWeek: { date: string; K: number | null; D: number | null; J: number | null }[] }) {
+  const n = kdjWeek.length;
+  if (n === 0) {
+    return (
+      <p style={{ fontSize: "0.8rem", color: "#9ca3af", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        暂无 KDJ 数据
+      </p>
+    );
+  }
+  const data = kdjWeek;
+
+  const vals: number[] = [];
+  data.forEach(d => {
+    if (d.K != null && isFinite(d.K)) vals.push(d.K);
+    if (d.D != null && isFinite(d.D)) vals.push(d.D);
+    if (d.J != null && isFinite(d.J)) vals.push(d.J);
+  });
+  const dataMin = vals.length ? Math.min(...vals) : 0;
+  const dataMax = vals.length ? Math.max(...vals) : 100;
+  const range = dataMax - dataMin || 1;
+  const padding = range * 0.08;
+  const yMin = dataMin - padding;
+  const yMax = dataMax + padding;
+  const yRange = yMax - yMin;
+
+  const x = (i: number) => PAD.left + (i / Math.max(data.length - 1, 1)) * PLOT_W_X;
+  const y = (v: number) => PAD.top + ((yMax - v) / yRange) * PLOT_H;
+
+  const toPath = (getVal: (d: (typeof data)[number]) => number | null) => {
+    let first = true;
+    let path = "";
+    for (let i = 0; i < data.length; i++) {
+      const v = getVal(data[i]);
+      if (v == null || !isFinite(v)) {
+        first = true;
+        continue;
+      }
+      const px = x(i);
+      const py = y(v);
+      if (first) {
+        path += `M ${px} ${py}`;
+        first = false;
+      } else {
+        path += ` L ${px} ${py}`;
+      }
+    }
+    return path || "";
+  };
+
+  const pathK = toPath(d => d.K);
+  const pathD = toPath(d => d.D);
+  const pathJ = toPath(d => d.J);
+
+  const formatDate = (d: string) => {
+    const parts = d.split("-");
+    if (parts.length >= 2) return `${parts[1]}-${parts[2] ?? ""}`;
+    return d;
+  };
+
+  const formatVal = (v: number | null) => (v != null && isFinite(v) ? v.toFixed(2) : "--");
+
+  const yTickDisplay = (() => {
+    const steps = 10;
+    const out: { pos: number; label: number }[] = [];
+    for (let k = 0; k <= steps; k++) {
+      const pos = yMin + (k / steps) * yRange;
+      out.push({ pos, label: Math.round(pos / 10) * 10 });
+    }
+    return out;
+  })();
+
+  const totalChartWidth = PAD.left + PLOT_W_X + PAD.right;
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth - el.clientWidth;
+  }, [data.length]);
+
+  return (
+    <div className="w-full overflow-hidden">
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: "0.7rem", color: KDJ_COLORS.K, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+          K
+        </span>
+        <span style={{ width: 20, height: 2, background: KDJ_COLORS.K, borderRadius: 1 }} />
+        <span style={{ fontSize: "0.7rem", color: KDJ_COLORS.D, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+          D
+        </span>
+        <span style={{ width: 20, height: 2, background: KDJ_COLORS.D, borderRadius: 1 }} />
+        <span style={{ fontSize: "0.7rem", color: KDJ_COLORS.J, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600 }}>
+          J
+        </span>
+        <span style={{ width: 20, height: 2, background: KDJ_COLORS.J, borderRadius: 1 }} />
+      </div>
+      <div ref={scrollRef} style={{ overflowX: "auto", marginLeft: -4, marginRight: -4, paddingLeft: 4, paddingRight: 4 }}>
+        <div style={{ minWidth: totalChartWidth }}>
+          <svg
+            viewBox={`0 0 ${totalChartWidth} ${CHART_HEIGHT}`}
+            preserveAspectRatio="xMinYMid meet"
+            style={{ width: "100%", minWidth: totalChartWidth, height: "auto", display: "block" }}
+          >
+            {/* Y 轴实线 */}
+            <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={PAD.top + PLOT_H} stroke="#e5e7eb" strokeWidth={1} />
+            {/* X 轴实线 */}
+            <line x1={PAD.left} y1={PAD.top + PLOT_H} x2={PAD.left + PLOT_W_X} y2={PAD.top + PLOT_H} stroke="#e5e7eb" strokeWidth={1} />
+        {/* Y grid & labels (实线，10 等分取整 10) */}
+        {yTickDisplay.map(({ pos, label }, idx) => (
+          <g key={idx}>
+            <line
+              x1={PAD.left}
+              y1={y(pos)}
+              x2={PAD.left + PLOT_W_X}
+              y2={y(pos)}
+              stroke="#f3f4f6"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+            />
+            <text
+              x={PAD.left - 6}
+              y={y(pos) + 4}
+              textAnchor="end"
+              fontSize="10"
+              fill="#9ca3af"
+              fontFamily="'JetBrains Mono', monospace"
+            >
+              {label}
+            </text>
+          </g>
+        ))}
+        {/* 每日竖线（实线）+ 日期 + 交点上方居中数值 */}
+        {data.map((d, i) => {
+          const xi = x(i);
+          const yK = d.K != null && isFinite(d.K) ? y(d.K) : null;
+          const yD = d.D != null && isFinite(d.D) ? y(d.D) : null;
+          const yJ = d.J != null && isFinite(d.J) ? y(d.J) : null;
+          return (
+            <g key={d.date}>
+              <line
+                x1={xi}
+                y1={PAD.top}
+                x2={xi}
+                y2={PAD.top + PLOT_H}
+                stroke="#e5e7eb"
+                strokeWidth={1}
+              />
+              <text
+                x={xi}
+                y={CHART_HEIGHT - 6}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#6b7280"
+                fontFamily="'JetBrains Mono', monospace"
+              >
+                {formatDate(d.date)}
+              </text>
+              {yK != null && (
+                <text
+                  x={xi + 4}
+                  y={yK - 5}
+                  textAnchor="start"
+                  fontSize="9"
+                  fill={KDJ_COLORS.K}
+                  fontFamily="'JetBrains Mono', monospace"
+                >
+                  {formatVal(d.K)}
+                </text>
+              )}
+              {yD != null && (
+                <text
+                  x={xi + 4}
+                  y={yD - 5}
+                  textAnchor="start"
+                  fontSize="9"
+                  fill={KDJ_COLORS.D}
+                  fontFamily="'JetBrains Mono', monospace"
+                >
+                  {formatVal(d.D)}
+                </text>
+              )}
+              {yJ != null && (
+                <text
+                  x={xi + 4}
+                  y={yJ - 5}
+                  textAnchor="start"
+                  fontSize="9"
+                  fill={KDJ_COLORS.J}
+                  fontFamily="'JetBrains Mono', monospace"
+                >
+                  {formatVal(d.J)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        {/* Lines */}
+        {pathK && (
+          <path d={pathK} fill="none" stroke={KDJ_COLORS.K} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        )}
+        {pathD && (
+          <path d={pathD} fill="none" stroke={KDJ_COLORS.D} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        )}
+        {pathJ && (
+          <path d={pathJ} fill="none" stroke={KDJ_COLORS.J} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        )}
+          </svg>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -746,6 +967,14 @@ function ResultPanel({ data }: { data: QuantDataVo }) {
           <MetricCard label="风险预算" value={fmt(data.last.Risk_Budget, 2)} />
         </div>
       </StyledCard>
+
+      {/* ── KDJ 近一周折线图（在关键技术指标之下）── */}
+      {data.kdj_week && data.kdj_week.length > 0 && (
+        <StyledCard delay={200}>
+          <SectionLabel>KDJ · 近一周</SectionLabel>
+          <KDJLineChart kdjWeek={data.kdj_week} />
+        </StyledCard>
+      )}
 
       {/* ── Module 5: Fundamentals ── */}
       <StyledCard delay={240}>
