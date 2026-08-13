@@ -16,6 +16,11 @@
 # next.js
 /.next/
 /out/
+.claude/projects/
+.claude/settings.local*
+.claude/docs/
+.claude/plans/
+**/.DS_Store
 
 # production
 /build
