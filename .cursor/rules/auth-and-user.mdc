@@ -8,18 +8,20 @@ alwaysApply: false
 
 ## 登录链路
 
-1. 前端：Firebase `signInWithGoogle()` 取得 Firebase User，`getIdToken(user)` 得到 id_token。
-2. 调用 `authLogin(idToken)`（POST `/auth/login`），后端返回 access_token 与用户信息。
-3. 前端：`saveAuthToStorage(token, name, avatar)` 写入 sessionStorage；`getUserManager().login({ token, name, avatar })` 更新内存状态。
-4. 跳转至 callbackUrl（如 `/`）。
+1. 登录页：`oauthAuthorize(redirectUri)` → 整页跳转 `authorization_url`（Google）。
+2. 回调页 `/login/callback`：用 `code` 调 `oauthCallback` → access + refresh。
+3. 前端：`saveAuthToStorage(access, refresh, name, avatar)` 写入 localStorage；`getUserManager().login({ token, name, avatar })`。
+4. `router.replace(consumePendingCallbackUrl())`（OAuth 前由 `setPendingCallbackUrl` 写入 sessionStorage）。
 
 ## 应用启动恢复
 
 - `HttpClientInit` 在根 layout 中挂载，仅在客户端执行：
-  - 用 `getStoredToken()` / `getStoredUser()` 从 sessionStorage 恢复；
+  - 用 `getStoredToken()` / `getStoredUser()` 从 localStorage 恢复；
   - 若有 token 则 `getUserManager().setUser({ token, name, avatar })`；
-  - 再 `initHttpClient({ getToken: () => getUserManager().getToken() })`，之后所有请求自动带 `Authorization: Bearer <token>`。
-- 不在 HttpClientInit 之外重复调用 initHttpClient；token 来源统一为 UserManager（其初值由 storage 恢复）。
+  - 再 `initHttpClient({ getToken: () => getUserManager().getToken() })`；
+  - 有 token 时 `authMe()`；若 1007/401 且存在 refresh → `authRefresh` 后再 me；仍失败则清态。
+- 认证请求使用请求级 `baseURL: WACHI_AUTH_BASE`；业务请求走默认 `API_BASE`。
+- 不在 HttpClientInit 之外重复调用 initHttpClient；token 来源统一为 UserManager。
 
 ## 用户状态在 React 中的使用
 
@@ -28,5 +30,5 @@ alwaysApply: false
 
 ## 关键导出
 
-- **auth**：`authLogin`、`authLogout`、`authMe`；`saveAuthToStorage`、`clearAuthFromStorage`、`getStoredToken`、`getStoredUser`。
+- **auth**：`oauthAuthorize`、`oauthCallback`、`authRefresh`、`authLogout`、`authMe`；storage / session / config helpers。
 - **user**：`getUserManager()`、`useUser()`；UserManager 提供 `login`、`logout`、`onLogin`、`onLogout`。

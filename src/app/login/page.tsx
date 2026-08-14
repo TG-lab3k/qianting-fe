@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { authLogin, saveAuthToStorage } from "@/core/auth";
-import { getUserManager } from "@/core/user";
-import { signInWithGoogle, getIdToken } from "@/core/firebase";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  oauthAuthorize,
+  setPendingCallbackUrl,
+  WACHI_AUTH_APP_ID,
+  getOAuthRedirectUri,
+  sanitizeCallbackUrl,
+  mapAuthErrorMessage,
+} from "@/core/auth";
 import { GoogleLogo } from "@/components/ui/google-logo";
 
 function LoginContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,31 +22,20 @@ function LoginContent() {
 
   async function handleGoogleLogin() {
     setError(null);
+    if (!WACHI_AUTH_APP_ID) {
+      setError("认证未配置，请设置 NEXT_PUBLIC_WACHI_AUTH_APP_ID");
+      return;
+    }
     setLoading(true);
     try {
-      const user = await signInWithGoogle();
-      if (!user) {
-        setError("登录已取消");
-        return;
-      }
-      const idToken = await getIdToken(user);
-      const res = await authLogin(idToken);
+      const redirectUri = getOAuthRedirectUri();
+      setPendingCallbackUrl(sanitizeCallbackUrl(callbackUrl));
+      const res = await oauthAuthorize(redirectUri);
       if (!res.ok) {
-        if (res.errorCode === 401) setError("登录无效或已过期，请重试");
-        else if (res.errorCode === 503) setError("服务暂不可用，请稍后重试");
-        else setError(res.errorMessage || "登录失败");
+        setError(mapAuthErrorMessage(res.errorCode, res.errorMessage));
         return;
       }
-      const { access_token, user: authUser } = res.data;
-      const name = authUser.display_name ?? authUser.email ?? "";
-      const avatar = authUser.photo_url ?? "";
-      saveAuthToStorage(access_token, name, avatar);
-      getUserManager().login({
-        token: access_token,
-        name,
-        avatar,
-      });
-      router.replace(callbackUrl);
+      window.location.assign(res.data.authorization_url);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "登录失败，请重试";
       setError(msg);
@@ -125,9 +119,9 @@ function LoginContent() {
           {loading ? "登录中…" : "使用 Google 登录"}
         </button>
         <p style={{ marginTop: 20, fontSize: "0.8rem", color: "#9ca3af" }}>
-          <a href="/" style={{ color: "#6b7280", textDecoration: "none" }}>
+          <Link href="/" style={{ color: "#6b7280", textDecoration: "none" }}>
             返回首页
-          </a>
+          </Link>
         </p>
       </div>
     </div>
@@ -136,11 +130,21 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#fafafa" }}>
-        <span style={{ color: "#9ca3af", fontSize: "0.9rem" }}>加载中…</span>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#fafafa",
+          }}
+        >
+          <span style={{ color: "#9ca3af", fontSize: "0.9rem" }}>加载中…</span>
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

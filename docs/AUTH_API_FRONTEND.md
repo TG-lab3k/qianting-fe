@@ -1,51 +1,66 @@
-# 前端登录对接文档
+# 前端登录对接文档（wachi-auth）
 
-本文档描述前端与后端认证接口的约定，以及本项目的对接实现位置。
+本文档描述前端与 **wachi-auth** 认证服务的约定，以及本项目的对接实现位置。
 
 ## 概述与前置条件
 
-- **后端 Base URL**：优先使用环境变量 `NEXT_PUBLIC_API_BASE`（若已设置）；未设置时，开发环境（`NODE_ENV === 'development'`）默认 `http://localhost:8080`，生产环境默认 `https://api.qianting.xyz`。
-- **认证方式**：登录后使用 **JWT access_token**，后续请求在 Header 中携带 `Authorization: Bearer <access_token>`（由 `core/http-client` 统一添加）。
-- **前端前置**：用户先通过 **Firebase Auth**（Google Sign-In）在客户端登录，取得 **Firebase ID Token**（id_token），再调用后端 `POST /auth/login` 换取本系统的 access_token 与用户信息。
+- **认证 Base URL**：`NEXT_PUBLIC_WACHI_AUTH_BASE`（默认 `https://auth.qianting.xyz`），路径前缀 `/api/v1`。
+- **业务 Base URL**：`NEXT_PUBLIC_API_BASE`（默认 dev=`http://localhost:8080`，prod=`https://api.qianting.xyz`）。
+- **App ID**：`NEXT_PUBLIC_WACHI_AUTH_APP_ID`（如 `app_zHlN4VrsJHKhM77g`）。
+- **认证方式**：登录后使用 wachi-auth 签发的 **JWT access_token**；业务请求由 `core/http-client` 自动加 `Authorization: Bearer <access_token>`。
+- **登录前置**：Google OAuth Authorization Code（整页跳转），回调本站 `/login/callback` 后换取 access + refresh。
 
-## 接口定义
+## 接口定义（wachi-auth）
 
-### 1. POST /auth/login — 登录
+### 1. GET /api/v1/auth/oauth/google/authorize
 
-- **请求**：`POST {BASE_URL}/auth/login`，Body `{ "id_token": "<Firebase ID Token>" }`，`Content-Type: application/json`。
-- **成功**（HTTP 200，body.code === 0）：`data`: `{ access_token, expires_in, user: { uid, email, display_name, photo_url, provider } }`。
-- **错误**：HTTP 200 且 `code === 401`（未传/无效 id_token）或 `code === 503`（服务不可用）。
+- Query：`app_id`、`redirect_uri`（须在应用 `redirect_uris` 白名单内，精确匹配）。
+- 成功 `data`：`{ provider, authorization_url }`。前端整页跳转 `authorization_url`。
 
-### 2. POST /auth/logout — 登出
+### 2. POST /api/v1/auth/oauth/google/callback
 
-- **请求**：`POST {BASE_URL}/auth/logout`，Header `Authorization: Bearer <access_token>`。
-- **成功**：`code === 0`，`message: "ok"`。前端应清除本地 access_token。
-- **错误**：HTTP 401 或 503；前端仍应清除本地 token。
+- Body：`{ app_id, code, redirect_uri }`（`redirect_uri` 须与 authorize 一致）。
+- 成功 `data`：`{ user_id, email, nickname, access_token, refresh_token, token_type, expires_in }`。
 
-### 3. GET /auth/me — 获取当前用户（校验 token）
+### 3. POST /api/v1/auth/refresh
 
-- **请求**：`GET {BASE_URL}/auth/me`，Header `Authorization: Bearer <access_token>`。
-- **成功**：`code === 0`，`data`: `{ uid, email, display_name, photo_url, provider }`。
-- **错误**：HTTP 401（未登录或 token 无效/过期）或 503。
+- Body：`{ refresh_token }` → 新的 access + refresh（rotation）。
+
+### 4. POST /api/v1/auth/logout
+
+- Header：`Authorization: Bearer <access_token>`。撤销 refresh；前端仍应清除本地凭证。
+
+### 5. GET /api/v1/user/me
+
+- Header：Bearer。成功 `data`：`{ user_id, app_id, email, nickname, avatar_url, ... }`。
 
 ## 通用约定
 
-- 业务成功均为 `code === 0`；业务失败可能仍为 HTTP 200 但 `code !== 0`（如 401、503）。
-- 收到 HTTP 401/503 时，前端应清除 token 并引导至登录页。
+- 业务成功均为 `code === 0`；失败可能仍为 HTTP 200 但 `code !== 0`。
+- 认证请求通过 http-client 的请求级 `baseURL` 打到 wachi-auth；业务请求仍走默认 `API_BASE`。
+- Token 存 **localStorage**：`access_token`、`refresh_token`、`user_name`、`user_avatar`。
+- 启动时 `HttpClientInit` 调 me；若 token 失效（1007/401）则尝试 refresh 一次。
 
 ## 本项目实现位置
 
-| 功能           | 位置 |
-|----------------|------|
-| 类型与 API 封装 | `src/core/auth/`（types.ts, api.ts, storage.ts） |
-| Firebase 登录   | `src/core/firebase.ts`，登录页 `src/app/login/page.tsx` |
-| Token 持久化   | `localStorage`（多 Tab 共享），读写见 `core/auth/storage.ts`；恢复与校验在 `src/app/HttpClientInit.tsx`（有本地 token 时调用 GET /auth/me 校验并拉取用户信息） |
-| 登录态与登出   | `core/user`（UserManager + useUser），首页导航栏展示用户/退出 |
+| 功能 | 位置 |
+|------|------|
+| 配置 / redirect_uri / 错误文案 | `src/core/auth/config.ts` |
+| 类型与 API | `src/core/auth/types.ts`、`api.ts` |
+| Token 持久化 | `src/core/auth/storage.ts` |
+| OAuth 回跳路径暂存 | `src/core/auth/session.ts` |
+| 登录发起 | `src/app/login/page.tsx` |
+| OAuth 回调 | `src/app/login/callback/page.tsx` |
+| 启动恢复 | `src/app/HttpClientInit.tsx` |
+| 登录态订阅 | `core/user`（UserManager + useUser） |
 
-## 错误码
+## 错误码（节选）
 
-| code | 含义           | 前端建议           |
-|------|----------------|--------------------|
-| 0    | 成功           | 正常处理           |
-| 401  | 未授权/token 无效 | 清 token，跳转登录 |
-| 503  | 服务不可用     | 提示稍后重试       |
+| code | 含义 | 前端建议 |
+|------|------|----------|
+| 0 | 成功 | 正常处理 |
+| 1007 / 401 | Token 无效/过期 | 尝试 refresh；失败则清态并引导登录 |
+| 1008 | 三方登录失败 | 回调页提示重试 |
+| 2001 | App 不存在/停用 | 提示配置异常 |
+| 2006 | redirect_uri 不在白名单 | 提示配置异常（服务端联调修复） |
+| 2007 | 未配置 Google | 提示暂不可用 |

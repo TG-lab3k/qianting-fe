@@ -1,35 +1,71 @@
 import { get, post, type Result } from "@/core/http-client";
+import { WACHI_AUTH_APP_ID, WACHI_AUTH_BASE } from "./config";
 import type {
   AuthUser,
-  LoginReq,
-  LoginResData,
-  MeResData,
   LogoutResData,
+  MeResData,
+  OAuthAuthorizeData,
+  OAuthCallbackReq,
+  TokenPairData,
 } from "./types";
 
-/**
- * 使用 Firebase id_token 调用后端登录，换取 access_token 与用户信息。
- * 请求不带 Authorization，登录成功后由业务层保存 token 并调用 UserManager.login。
- */
-export async function authLogin(idToken: string): Promise<Result<LoginResData>> {
-  const body: LoginReq = { id_token: idToken };
-  return post<LoginResData>("/auth/login", body);
+const AUTH_API = {
+  authorize: "/api/v1/auth/oauth/google/authorize",
+  callback: "/api/v1/auth/oauth/google/callback",
+  refresh: "/api/v1/auth/refresh",
+  logout: "/api/v1/auth/logout",
+  me: "/api/v1/user/me",
+} as const;
+
+function authCfg() {
+  return { baseURL: WACHI_AUTH_BASE };
 }
 
-/**
- * 登出：使当前 token 失效。请求会通过 http-client 自动携带 Authorization。
- * 无论成功或 401，前端都应清除本地 token 并调用 UserManager.logout。
- */
+/** 获取 Google OAuth 授权页 URL */
+export async function oauthAuthorize(
+  redirectUri: string
+): Promise<Result<OAuthAuthorizeData>> {
+  return get<OAuthAuthorizeData>(AUTH_API.authorize, {
+    ...authCfg(),
+    params: {
+      app_id: WACHI_AUTH_APP_ID,
+      redirect_uri: redirectUri,
+    },
+  });
+}
+
+/** 用 authorization code 换取 access + refresh */
+export async function oauthCallback(
+  code: string,
+  redirectUri: string
+): Promise<Result<TokenPairData>> {
+  const body: OAuthCallbackReq = {
+    app_id: WACHI_AUTH_APP_ID,
+    code,
+    redirect_uri: redirectUri,
+  };
+  return post<TokenPairData>(AUTH_API.callback, body, authCfg());
+}
+
+/** 轮换 token 对 */
+export async function authRefresh(
+  refreshToken: string
+): Promise<Result<TokenPairData>> {
+  return post<TokenPairData>(
+    AUTH_API.refresh,
+    { refresh_token: refreshToken },
+    authCfg()
+  );
+}
+
+/** 登出：撤销 refresh；无论成败前端都应清本地态 */
 export async function authLogout(): Promise<Result<LogoutResData>> {
-  return post<LogoutResData>("/auth/logout", {});
+  return post<LogoutResData>(AUTH_API.logout, {}, authCfg());
 }
 
-/**
- * 获取当前用户并校验 token。用于应用启动或路由切换时恢复/校验登录态。
- * 请求会通过 http-client 自动携带 Authorization。
- */
+/** 获取当前用户并校验 access token */
 export async function authMe(): Promise<Result<MeResData>> {
-  return get<MeResData>("/auth/me");
+  return get<MeResData>(AUTH_API.me, authCfg());
 }
 
-export type { AuthUser, LoginResData, MeResData, LogoutResData };
+export type { AuthUser, MeResData, LogoutResData, TokenPairData, OAuthAuthorizeData };

@@ -10,6 +10,8 @@ export interface HttpRequestConfig {
   data?: unknown;
   headers?: Record<string, string>;
   timeout?: number;
+  /** 覆盖单例默认 baseURL（如认证服务走另一 host） */
+  baseURL?: string;
 }
 
 export interface HttpResponse<T> {
@@ -138,6 +140,7 @@ function toAxiosConfig(config?: HttpRequestConfig): AxiosRequestConfig {
     data: config.data,
     headers: config.headers,
     timeout: config.timeout,
+    baseURL: config.baseURL,
   };
 }
 

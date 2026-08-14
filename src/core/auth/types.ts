@@ -1,32 +1,60 @@
-/**
- * 与后端 AUTH_API 约定一致的请求/响应类型（见 docs/AUTH_API_FRONTEND.md）
- */
-
-/** 后端返回的用户信息（/auth/login、/auth/me） */
-export interface AuthUser {
-  uid: string;
+/** OAuth callback / refresh 成功时 data */
+export interface TokenPairData {
+  user_id: string;
   email: string | null;
-  display_name: string | null;
-  photo_url: string | null;
-  provider: string;
-}
-
-/** POST /auth/login 请求体 */
-export interface LoginReq {
-  id_token: string;
-}
-
-/** POST /auth/login 成功时 data 字段 */
-export interface LoginResData {
+  nickname: string | null;
   access_token: string;
+  refresh_token: string;
+  token_type: string;
   expires_in: number;
-  user: AuthUser;
 }
 
-/** GET /auth/me 成功时 data 字段（扁平用户对象，见 AUTH_API_FRONTEND.md） */
+export interface OAuthAuthorizeData {
+  provider: string;
+  authorization_url: string;
+}
+
+export interface OAuthCallbackReq {
+  app_id: string;
+  code: string;
+  redirect_uri: string;
+}
+
+export interface RefreshReq {
+  refresh_token: string;
+}
+
+/** GET /api/v1/user/me */
+export interface AuthUser {
+  user_id: string;
+  app_id: string;
+  email: string | null;
+  email_verified?: boolean;
+  nickname: string | null;
+  avatar_url: string | null;
+  status?: string;
+  linked_providers?: string[];
+}
+
 export type MeResData = AuthUser;
 
-/** POST /auth/logout 成功时无 data 或 message（后端返回 code:0, message:"ok"） */
 export interface LogoutResData {
   message?: string;
+}
+
+export function displayFromAuthUser(
+  u: Pick<AuthUser, "nickname" | "email" | "avatar_url">
+): { name: string; avatar: string } {
+  return {
+    name: u.nickname ?? u.email ?? "",
+    avatar: u.avatar_url ?? "",
+  };
+}
+
+/** callback 响应通常无头像，先空 avatar */
+export function displayFromTokenPair(d: TokenPairData): { name: string; avatar: string } {
+  return {
+    name: d.nickname ?? d.email ?? "",
+    avatar: "",
+  };
 }
