@@ -12,7 +12,7 @@
   - **框架**: Next.js 16.1.6（App Router）+ React 19.2.3
   - **构建**: TypeScript 5、React Compiler（`next.config.ts` 中 `reactCompiler: true`）
   - **HTTP**: Axios 封装的统一 [http-client](src/core/http-client/index.ts)（单例、Bearer 注入、`Result<T>`；请求级 `baseURL` 可打到认证 host）
-  - **认证**: [wachi-auth](https://auth.qianting.xyz) Google OAuth + JWT 双令牌（access / refresh）
+  - **认证**: [harbor-services](https://harbor.qianting.xyz) Google OAuth + JWT 双令牌（access / refresh）
   - **UI**: Tailwind CSS v4（`@theme` 在 [globals.css](src/app/globals.css)）+ shadcn 风格组件（Radix UI、class-variance-authority、tailwind-merge、clsx）
   - **字体**: next/font — Instrument Serif、JetBrains Mono、Plus Jakarta Sans（在 [layout.tsx](src/app/layout.tsx) 注入 CSS 变量）
 
@@ -84,18 +84,18 @@ flowchart TB
   1. 调用 `getUserManager()` 确保用户单例存在。
   2. 从 **localStorage** 用 `getStoredToken()` / `getStoredUser()` 恢复 token 与 name/avatar，若有则 `getUserManager().setUser(...)`。
   3. `initHttpClient({ getToken: () => getUserManager().getToken() })`，之后业务请求自动带 `Authorization: Bearer <token>`。
-  4. 有 token 时调用 wachi-auth `authMe()`；若失效且存在 refresh，则 `authRefresh` 后再 me。
+  4. 有 token 时调用 harbor `authMe()`；若失效且存在 refresh，则 `authRefresh` 后再 me。
 - 设计要点：token 由 UserManager + localStorage 提供；认证与业务可不同 host（请求级 `baseURL`）。
 
 ### 3.2 认证与用户状态
 
-- **Auth API**: [core/auth/api.ts](src/core/auth/api.ts) 指向 wachi-auth：
+- **Auth API**: [core/auth/api.ts](src/core/auth/api.ts) 指向 harbor-services：
   - `oauthAuthorize` → GET `/api/v1/auth/oauth/google/authorize`
   - `oauthCallback` → POST `/api/v1/auth/oauth/google/callback`
   - `authRefresh` / `authLogout` / `authMe`
 - **持久化**: [core/auth/storage.ts](src/core/auth/storage.ts) 使用 localStorage 存 `access_token`、`refresh_token`、`user_name`、`user_avatar`。
 - **用户单例**: [core/user](src/core/user/index.ts) 的 `UserManager` + [useUser](src/core/user/useUser.ts)。
-- **登录流程**：`/login` 拉 authorization_url 整页跳转 → Google → `/login/callback` 换 token → 存 localStorage + UserManager → 回跳业务页。
+- **登录流程**：`/login` 拉 `authorize_url` 整页跳转 → Google → `/login/callback`（`code` + `state`）换 token → 存 localStorage + UserManager → 回跳业务页。
 
 ### 3.3 业务请求与类型
 
@@ -124,8 +124,8 @@ flowchart TB
 ## 6. 架构要点小结
 
 - **分层**: App（路由、页面）→ Core（HTTP、Auth、User）→ 功能 data（apis + vo）→ UI。
-- **认证**: wachi-auth Google OAuth + 双 token；localStorage；UserManager；HttpClientInit 恢复并可选 refresh。
-- **请求**: 统一 http-client；业务 `API_BASE`；认证 `WACHI_AUTH_BASE`。
+- **认证**: harbor-services Google OAuth + 双 token；localStorage；UserManager；HttpClientInit 恢复并可选 refresh。
+- **请求**: 统一 http-client；业务 `API_BASE`；认证 `HARBOR_BASE`。
 - **类型**: 接口数据以 VO 形式集中在各模块的 `data/vo`。
 
-对接细节见 [AUTH_API_FRONTEND.md](AUTH_API_FRONTEND.md)；迁移设计见 [wachi-auth-migration/](wachi-auth-migration/)。
+对接细节见 [AUTH_API_FRONTEND.md](AUTH_API_FRONTEND.md)。

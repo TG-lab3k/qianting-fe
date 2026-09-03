@@ -8,8 +8,8 @@ alwaysApply: false
 
 ## 登录链路
 
-1. 登录页：`oauthAuthorize(redirectUri)` → 整页跳转 `authorization_url`（Google）。
-2. 回调页 `/login/callback`：用 `code` 调 `oauthCallback` → access + refresh。
+1. 登录页：`oauthAuthorize(redirectUri)` → 整页跳转 `authorize_url`（Google）。
+2. 回调页 `/login/callback`：用 `code` + `state` 调 `oauthCallback` → LoginResult（access + refresh + user）。
 3. 前端：`saveAuthToStorage(access, refresh, name, avatar)` 写入 localStorage；`getUserManager().login({ token, name, avatar })`。
 4. `router.replace(consumePendingCallbackUrl())`（OAuth 前由 `setPendingCallbackUrl` 写入 sessionStorage）。
 
@@ -20,7 +20,8 @@ alwaysApply: false
   - 若有 token 则 `getUserManager().setUser({ token, name, avatar })`；
   - 再 `initHttpClient({ getToken: () => getUserManager().getToken() })`；
   - 有 token 时 `authMe()`；若 1007/401 且存在 refresh → `authRefresh` 后再 me；仍失败则清态。
-- 认证请求使用请求级 `baseURL: WACHI_AUTH_BASE`；业务请求走默认 `API_BASE`。
+- 认证请求使用请求级 `baseURL: HARBOR_BASE`；业务请求走默认 `API_BASE`。
+- 业务 API 返回 401 且本地仍有 token 时：http-client 触发未授权回调 → `clearAuthFromStorage` + `UserManager.logout()`，并提示「登录已过期, 请重新登录」。
 - 不在 HttpClientInit 之外重复调用 initHttpClient；token 来源统一为 UserManager。
 
 ## 用户状态在 React 中的使用

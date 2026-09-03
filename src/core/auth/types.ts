@@ -1,30 +1,34 @@
-/** OAuth callback / refresh 成功时 data */
+/** POST refresh 成功时 data；OAuth/login 的 token 字段同此 */
 export interface TokenPairData {
-  user_id: string;
-  email: string | null;
-  nickname: string | null;
   access_token: string;
   refresh_token: string;
   token_type: string;
   expires_in: number;
 }
 
+/** OAuth callback / email login 成功时 data（TokenPair + user） */
+export interface LoginResultData extends TokenPairData {
+  user: AuthUser;
+}
+
 export interface OAuthAuthorizeData {
-  provider: string;
-  authorization_url: string;
+  authorize_url: string;
+  state: string;
 }
 
 export interface OAuthCallbackReq {
   app_id: string;
-  code: string;
+  code?: string;
+  id_token?: string;
   redirect_uri: string;
+  state?: string;
 }
 
 export interface RefreshReq {
   refresh_token: string;
 }
 
-/** GET /api/v1/user/me */
+/** GET /api/v1/user/me · LoginResult.user */
 export interface AuthUser {
   user_id: string;
   app_id: string;
@@ -32,8 +36,11 @@ export interface AuthUser {
   email_verified?: boolean;
   nickname: string | null;
   avatar_url: string | null;
+  phone?: string | null;
   status?: string;
-  linked_providers?: string[];
+  created_at?: string;
+  updated_at?: string;
+  last_login_at?: string | null;
 }
 
 export type MeResData = AuthUser;
@@ -51,10 +58,10 @@ export function displayFromAuthUser(
   };
 }
 
-/** callback 响应通常无头像，先空 avatar */
-export function displayFromTokenPair(d: TokenPairData): { name: string; avatar: string } {
-  return {
-    name: d.nickname ?? d.email ?? "",
-    avatar: "",
-  };
+export function displayFromLoginResult(d: LoginResultData): {
+  name: string;
+  avatar: string;
+} {
+  if (d.user) return displayFromAuthUser(d.user);
+  return { name: "", avatar: "" };
 }

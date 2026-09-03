@@ -1,14 +1,14 @@
-/** wachi-auth 服务根地址（不含 /api/v1） */
-export const WACHI_AUTH_BASE =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_WACHI_AUTH_BASE
-    ? process.env.NEXT_PUBLIC_WACHI_AUTH_BASE
-    : "https://auth.qianting.xyz";
+/** harbor-services 服务根地址（不含 /api/v1） */
+export const HARBOR_BASE =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_HARBOR_BASE
+    ? process.env.NEXT_PUBLIC_HARBOR_BASE
+    : "https://harbor.qianting.xyz";
 
-/** qianting 在 wachi-auth 中的 app_id */
-export const WACHI_AUTH_APP_ID =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_WACHI_AUTH_APP_ID
-    ? process.env.NEXT_PUBLIC_WACHI_AUTH_APP_ID
-    : "";
+/** qianting 在 harbor 中的 app_id */
+export const HARBOR_APP_ID =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_HARBOR_APP_ID
+    ? process.env.NEXT_PUBLIC_HARBOR_APP_ID
+    : "app_tZUakLxp9g2oSE7m";
 
 export const OAUTH_CALLBACK_PATH = "/login/callback";
 

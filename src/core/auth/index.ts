@@ -14,8 +14,8 @@ export {
 } from "./storage";
 export { setPendingCallbackUrl, consumePendingCallbackUrl } from "./session";
 export {
-  WACHI_AUTH_BASE,
-  WACHI_AUTH_APP_ID,
+  HARBOR_BASE,
+  HARBOR_APP_ID,
   OAUTH_CALLBACK_PATH,
   getOAuthRedirectUri,
   sanitizeCallbackUrl,
@@ -24,12 +24,13 @@ export {
 } from "./config";
 export {
   displayFromAuthUser,
-  displayFromTokenPair,
+  displayFromLoginResult,
 } from "./types";
 export type {
   AuthUser,
   MeResData,
   LogoutResData,
   TokenPairData,
+  LoginResultData,
   OAuthAuthorizeData,
 } from "./types";

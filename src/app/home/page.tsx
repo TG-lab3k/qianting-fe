@@ -1083,11 +1083,7 @@ export default function Home() {
       if (result.ok) {
         setData(result.data);
       } else {
-        if (result.errorCode === 401) {
-          setError("请登录后再使用分析功能");
-        } else {
-          setError(result.errorMessage);
-        }
+        setError(result.errorMessage);
       }
     } finally {
       setLoading(false);

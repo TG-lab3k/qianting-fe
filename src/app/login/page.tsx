@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import {
   oauthAuthorize,
   setPendingCallbackUrl,
-  WACHI_AUTH_APP_ID,
+  HARBOR_APP_ID,
   getOAuthRedirectUri,
   sanitizeCallbackUrl,
   mapAuthErrorMessage,
@@ -22,8 +22,8 @@ function LoginContent() {
 
   async function handleGoogleLogin() {
     setError(null);
-    if (!WACHI_AUTH_APP_ID) {
-      setError("认证未配置，请设置 NEXT_PUBLIC_WACHI_AUTH_APP_ID");
+    if (!HARBOR_APP_ID) {
+      setError("认证未配置，请设置 NEXT_PUBLIC_HARBOR_APP_ID");
       return;
     }
     setLoading(true);
@@ -35,7 +35,7 @@ function LoginContent() {
         setError(mapAuthErrorMessage(res.errorCode, res.errorMessage));
         return;
       }
-      window.location.assign(res.data.authorization_url);
+      window.location.assign(res.data.authorize_url);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "登录失败，请重试";
       setError(msg);

@@ -10,6 +10,7 @@ alwaysApply: false
 
 - 所有请求通过 `@/core/http-client` 的 `get`、`post`、`put`、`patch`、`del` 发起。
 - 初始化在应用入口完成（HttpClientInit 内 `initHttpClient({ getToken })`）；业务代码不再次 init，也不在业务层 `axios.create()` 或直接 `fetch()`。
+- 业务 API（默认 `API_BASE`）返回 **401** 且当前有登录态时：http-client 触发 `onUnauthorized`（由 HttpClientInit 注册）→ 清除本地登录态并提示「登录已过期, 请重新登录」。认证服务（请求级 `baseURL`）的 401 不触发该流程。
 
 ## Result 约定
 

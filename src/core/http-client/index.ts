@@ -1,4 +1,5 @@
 import axios, {
+  type AxiosError,
   type AxiosRequestConfig,
   type AxiosResponse,
 } from "axios";
@@ -13,6 +14,9 @@ export interface HttpRequestConfig {
   /** 覆盖单例默认 baseURL（如认证服务走另一 host） */
   baseURL?: string;
 }
+
+/** 业务 API 返回 401 时的统一文案 */
+export const SESSION_EXPIRED_MESSAGE = "登录已过期, 请重新登录";
 
 export interface HttpResponse<T> {
   data: T;
@@ -55,6 +59,8 @@ export const API_BASE =
 let instance: ReturnType<typeof axios.create> | null = null;
 let getToken: (() => string | null) | null = null;
 let tokenValue: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+let unauthorizedHandling = false;
 
 const NOT_INITIALIZED =
   "http-client: initHttpClient() must be called before making requests.";
@@ -62,6 +68,47 @@ const NOT_INITIALIZED =
 function resolveToken(): string | null {
   if (getToken) return getToken();
   return tokenValue;
+}
+
+function normalizeBase(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+/** 仅业务 API（默认 API_BASE）的 401 触发会话失效；认证 host 请求跳过 */
+function isBusinessApiRequest(config?: AxiosRequestConfig): boolean {
+  const base = normalizeBase(config?.baseURL ?? API_BASE);
+  return base === normalizeBase(API_BASE);
+}
+
+function bodyHasUnauthorizedCode(data: unknown): boolean {
+  if (data == null || typeof data !== "object") return false;
+  const code = (data as { code?: number; status?: number }).code
+    ?? (data as { status?: number }).status;
+  return code === 401;
+}
+
+function notifyUnauthorized(config?: AxiosRequestConfig): void {
+  if (!isBusinessApiRequest(config)) return;
+  if (!resolveToken()) return;
+  if (unauthorizedHandling) return;
+  unauthorizedHandling = true;
+  try {
+    onUnauthorized?.();
+  } catch (e) {
+    if (typeof console !== "undefined" && console.error) {
+      console.error("[http-client] onUnauthorized error:", e);
+    }
+  }
+}
+
+/** 登录成功后重置，以便下次 401 可再次触发 */
+export function resetUnauthorizedHandling(): void {
+  unauthorizedHandling = false;
+}
+
+/** 注册 / 更新业务 API 401 回调（清登录态、提示等） */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
 }
 
 /** 将响应错误（如 AxiosError）转为 ApiError，供 toFailedResult 统一处理 */
@@ -90,9 +137,14 @@ export interface InitHttpClientOptions {
   getToken?: () => string | null;
   token?: string | null;
   baseURL?: string;
+  /** 业务 API 返回 401 且当前有登录态时调用 */
+  onUnauthorized?: () => void;
 }
 
 export function initHttpClient(options: InitHttpClientOptions = {}): void {
+  if (options.onUnauthorized !== undefined) {
+    onUnauthorized = options.onUnauthorized;
+  }
   if (instance) return;
 
   const { getToken: gt, token, baseURL } = options;
@@ -112,8 +164,21 @@ export function initHttpClient(options: InitHttpClientOptions = {}): void {
     return config;
   });
 
-  instance.interceptors.response.use(undefined, (error: unknown) =>
-    Promise.reject(responseErrorToApiError(error))
+  instance.interceptors.response.use(
+    (response) => {
+      if (bodyHasUnauthorizedCode(response.data)) {
+        notifyUnauthorized(response.config);
+      }
+      return response;
+    },
+    (error: unknown) => {
+      const apiErr = responseErrorToApiError(error);
+      if (apiErr.code === 401) {
+        const cfg = (error as AxiosError | undefined)?.config;
+        notifyUnauthorized(cfg);
+      }
+      return Promise.reject(apiErr);
+    }
   );
 }
 
@@ -164,19 +229,6 @@ function toHttpResponse<T>(res: AxiosResponse<T>): HttpResponse<T> {
   };
 }
 
-/** 根据响应 body 的 code/status 转为 Result，不抛错；成功直接返回 body */
-function toResult<T>(res: AxiosResponse<T>): Result<T> {
-  const body = res.data;
-  if (body != null && typeof body === "object") {
-    const code = (body as { code?: number; status?: number }).code ?? (body as { code?: number; status?: number }).status;
-    if (code !== undefined && code !== 0) {
-      const msg = (body as { message?: string }).message ?? "接口异常";
-      return { ok: false, errorCode: code, errorMessage: msg };
-    }
-  }
-  return { ok: true, data: res.data };
-}
-
 /** 将响应 body 转为 Result<T>：T 为业务层传入的 payload 类型，成功时只返回 body.data（即 HttpResponse.data） */
 function toResultHttpResponse<T>(
   res: AxiosResponse<Record<string, unknown> & { data?: T }>
@@ -185,8 +237,13 @@ function toResultHttpResponse<T>(
   if (body != null && typeof body === "object") {
     const code = (body as { code?: number; status?: number }).code ?? (body as { code?: number; status?: number }).status;
     if (code !== undefined && code !== 0) {
-      const msg = (body as { message?: string }).message ?? "接口异常";
-      console.log(`toResultHttpResponse __ ${code} ${msg}`);
+      const fallback = (body as { message?: string }).message ?? "接口异常";
+      const msg =
+        code === 401
+          ? unauthorizedHandling
+            ? SESSION_EXPIRED_MESSAGE
+            : "请登录后再使用分析功能"
+          : fallback;
       return { ok: false, errorCode: code, errorMessage: msg };
     }
   }
@@ -198,11 +255,19 @@ function toResultHttpResponse<T>(
 }
 
 function toFailedResult(err: unknown): Result<never> {
-  console.log(`toFailedResult __ ${err}`);
   const errorCode = err instanceof ApiError ? err.code : -1;
+  const fallback =
+    err instanceof ApiError
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : "请求失败";
   const errorMessage =
-    err instanceof ApiError ? err.message : err instanceof Error ? err.message : "请求失败";
-  console.log(`toFailedResult __ ${errorCode} ${errorMessage}`);
+    errorCode === 401
+      ? unauthorizedHandling
+        ? SESSION_EXPIRED_MESSAGE
+        : "请登录后再使用分析功能"
+      : fallback;
   return { ok: false, errorCode, errorMessage };
 }
 

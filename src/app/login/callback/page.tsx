@@ -9,7 +9,7 @@ import {
   saveAuthToStorage,
   consumePendingCallbackUrl,
   getOAuthRedirectUri,
-  displayFromTokenPair,
+  displayFromLoginResult,
   mapAuthErrorMessage,
 } from "@/core/auth";
 
@@ -17,6 +17,7 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
   const [error, setError] = useState<string | null>(
     code ? null : "登录已取消或回调无效"
   );
@@ -30,14 +31,14 @@ function CallbackContent() {
     void (async () => {
       try {
         const redirectUri = getOAuthRedirectUri();
-        const res = await oauthCallback(code, redirectUri);
+        const res = await oauthCallback(code, redirectUri, state);
         if (cancelled) return;
         if (!res.ok) {
           setError(mapAuthErrorMessage(res.errorCode, res.errorMessage));
           return;
         }
         const { access_token, refresh_token } = res.data;
-        const { name, avatar } = displayFromTokenPair(res.data);
+        const { name, avatar } = displayFromLoginResult(res.data);
         saveAuthToStorage(access_token, refresh_token, name, avatar);
         getUserManager().login({
           token: access_token,
@@ -54,7 +55,7 @@ function CallbackContent() {
     return () => {
       cancelled = true;
     };
-  }, [code, router]);
+  }, [code, state, router]);
 
   return (
     <div
